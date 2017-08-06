@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ReferenceGroup xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" ID="26d74113-524a-497d-9726-93a6de0836e6" xmlns="urn:schemas-microsoft-com:xml-wcfservicemap">
+  <ClientOptions>
+    <GenerateAsynchronousMethods>false</GenerateAsynchronousMethods>
+    <GenerateTaskBasedAsynchronousMethod>true</GenerateTaskBasedAsynchronousMethod>
+    <EnableDataBinding>true</EnableDataBinding>
+    <ExcludedTypes />
+    <ImportXmlTypes>false</ImportXmlTypes>
+    <GenerateInternalTypes>false</GenerateInternalTypes>
+    <GenerateMessageContracts>false</GenerateMessageContracts>
+    <NamespaceMappings />
+    <CollectionMappings />
+    <GenerateSerializableTypes>true</GenerateSerializableTypes>
+    <Serializer>Auto</Serializer>
+    <UseSerializerForFaults>true</UseSerializerForFaults>
+    <ReferenceAllAssemblies>true</ReferenceAllAssemblies>
+    <ReferencedAssemblies />
+    <ReferencedDataContractTypes />
+    <ServiceContractMappings />
+  </ClientOptions>
+  <MetadataSources>
+    <MetadataSource Address="http://localhost:8733/ADVLService" Protocol="http" SourceId="1" />
+  </MetadataSources>
+  <Metadata>
+    <MetadataFile FileName="ADVLService.disco" MetadataType="Disco" ID="485b4bb1-1f22-44e2-8f72-5e919c2dab2c" SourceId="1" SourceUrl="http://localhost:8733/ADVLService?disco" />
+    <MetadataFile FileName="ADVLService.xsd" MetadataType="Schema" ID="bf0f15ad-680a-4347-a7b6-7afc39cc2146" SourceId="1" SourceUrl="http://localhost:8733/ADVLService?xsd=xsd0" />
+    <MetadataFile FileName="ADVLService1.xsd" MetadataType="Schema" ID="18dea750-418a-4585-be95-5349b878f4f3" SourceId="1" SourceUrl="http://localhost:8733/ADVLService?xsd=xsd1" />
+    <MetadataFile FileName="ADVLService2.xsd" MetadataType="Schema" ID="8e4e7dfa-b9bd-49bb-a99d-fb9ec6571f64" SourceId="1" SourceUrl="http://localhost:8733/ADVLService?xsd=xsd2" />
+    <MetadataFile FileName="MsgService.wsdl" MetadataType="Wsdl" ID="cd77f9fa-b026-4c1c-a850-2be6ab1f9e26" SourceId="1" SourceUrl="http://localhost:8733/ADVLService?wsdl" />
+  </Metadata>
+  <Extensions>
+    <ExtensionFile FileName="configuration91.svcinfo" Name="configuration91.svcinfo" />
+    <ExtensionFile FileName="configuration.svcinfo" Name="configuration.svcinfo" />
+  </Extensions>
+</ReferenceGroup>
