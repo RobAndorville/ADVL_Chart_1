@@ -63,6 +63,48 @@ Public Class AxisProperties
             _maximum = value
         End Set
     End Property
+
+    Private _autoInterval As Boolean = True 'If True, the axis annotation interval is determined automatically.
+    Property AutoInterval As Boolean
+        Get
+            Return _autoInterval
+        End Get
+        Set(value As Boolean)
+            _autoInterval = value
+        End Set
+    End Property
+
+
+    Private _interval As Double = 0 'The Axis annotation interval. 0 = Auto.
+    Property Interval As Double
+        Get
+            Return _interval
+        End Get
+        Set(value As Double)
+            _interval = value
+        End Set
+    End Property
+
+    Private _autoMajorGridInterval As Boolean = True 'If True, the axis major grid interval is determined automatically.
+    Property AutoMajorGridInterval As Boolean
+        Get
+            Return _autoMajorGridInterval
+        End Get
+        Set(value As Boolean)
+            _autoMajorGridInterval = value
+        End Set
+    End Property
+
+    Private _majorGridInterval As Double = 0 'The major grid interval. 0 = Auto.
+    Property MajorGridInterval As Double
+        Get
+            Return _majorGridInterval
+        End Get
+        Set(value As Double)
+            _majorGridInterval = value
+        End Set
+    End Property
+
 End Class
 
 Public Class ChartLabelProperties
@@ -477,6 +519,10 @@ Public Class PointChart
         If XDoc.<ChartSettings>.<XAxis>.<Minimum>.Value <> Nothing Then XAxis.Minimum = XDoc.<ChartSettings>.<XAxis>.<Minimum>.Value
         If XDoc.<ChartSettings>.<XAxis>.<AutoMaximum>.Value <> Nothing Then XAxis.AutoMaximum = XDoc.<ChartSettings>.<XAxis>.<AutoMaximum>.Value
         If XDoc.<ChartSettings>.<XAxis>.<Maximum>.Value <> Nothing Then XAxis.Maximum = XDoc.<ChartSettings>.<XAxis>.<Maximum>.Value
+        If XDoc.<ChartSettings>.<XAxis>.<AutoInterval>.Value <> Nothing Then XAxis.AutoInterval = XDoc.<ChartSettings>.<XAxis>.<AutoInterval>.Value
+        If XDoc.<ChartSettings>.<XAxis>.<Interval>.Value <> Nothing Then XAxis.Interval = XDoc.<ChartSettings>.<XAxis>.<Interval>.Value
+        If XDoc.<ChartSettings>.<XAxis>.<AutoMajorGridInterval>.Value <> Nothing Then XAxis.AutoMajorGridInterval = XDoc.<ChartSettings>.<XAxis>.<AutoMajorGridInterval>.Value
+        If XDoc.<ChartSettings>.<XAxis>.<MajorGridInterval>.Value <> Nothing Then XAxis.MajorGridInterval = XDoc.<ChartSettings>.<XAxis>.<MajorGridInterval>.Value
 
         'X Axis:
         If XDoc.<ChartSettings>.<YAxis>.<TitleText>.Value <> Nothing Then YAxis.Title.Text = XDoc.<ChartSettings>.<YAxis>.<TitleText>.Value
@@ -493,6 +539,10 @@ Public Class PointChart
         If XDoc.<ChartSettings>.<YAxis>.<Minimum>.Value <> Nothing Then YAxis.Minimum = XDoc.<ChartSettings>.<YAxis>.<Minimum>.Value
         If XDoc.<ChartSettings>.<YAxis>.<AutoMaximum>.Value <> Nothing Then YAxis.AutoMaximum = XDoc.<ChartSettings>.<YAxis>.<AutoMaximum>.Value
         If XDoc.<ChartSettings>.<YAxis>.<Maximum>.Value <> Nothing Then YAxis.Maximum = XDoc.<ChartSettings>.<YAxis>.<Maximum>.Value
+        If XDoc.<ChartSettings>.<YAxis>.<AutoInterval>.Value <> Nothing Then YAxis.AutoInterval = XDoc.<ChartSettings>.<YAxis>.<AutoInterval>.Value
+        If XDoc.<ChartSettings>.<YAxis>.<Interval>.Value <> Nothing Then YAxis.Interval = XDoc.<ChartSettings>.<YAxis>.<Interval>.Value
+        If XDoc.<ChartSettings>.<YAxis>.<AutoMajorGridInterval>.Value <> Nothing Then YAxis.AutoMajorGridInterval = XDoc.<ChartSettings>.<YAxis>.<AutoMajorGridInterval>.Value
+        If XDoc.<ChartSettings>.<YAxis>.<MajorGridInterval>.Value <> Nothing Then YAxis.MajorGridInterval = XDoc.<ChartSettings>.<YAxis>.<MajorGridInterval>.Value
 
     End Sub
 
@@ -541,6 +591,10 @@ Public Class PointChart
                            <Minimum><%= XAxis.Minimum %></Minimum>
                            <AutoMaximum><%= XAxis.AutoMaximum %></AutoMaximum>
                            <Maximum><%= XAxis.Maximum %></Maximum>
+                           <AutoInterval><%= XAxis.AutoInterval %></AutoInterval>
+                           <Interval><%= XAxis.Interval %></Interval>
+                           <AutoMajorGridInterval><%= XAxis.AutoMajorGridInterval %></AutoMajorGridInterval>
+                           <MajorGridInterval><%= XAxis.MajorGridInterval %></MajorGridInterval>
                        </XAxis>
                        <YAxis>
                            <TitleText><%= YAxis.Title.Text %></TitleText>
@@ -556,6 +610,10 @@ Public Class PointChart
                            <Minimum><%= YAxis.Minimum %></Minimum>
                            <AutoMaximum><%= YAxis.AutoMaximum %></AutoMaximum>
                            <Maximum><%= YAxis.Maximum %></Maximum>
+                           <AutoInterval><%= YAxis.AutoInterval %></AutoInterval>
+                           <Interval><%= YAxis.Interval %></Interval>
+                           <AutoMajorGridInterval><%= YAxis.AutoMajorGridInterval %></AutoMajorGridInterval>
+                           <MajorGridInterval><%= YAxis.MajorGridInterval %></MajorGridInterval>
                        </YAxis>
                    </ChartSettings>
 

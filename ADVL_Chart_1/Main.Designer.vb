@@ -111,6 +111,12 @@ Partial Class Main
         Me.txtChartTitle = New System.Windows.Forms.TextBox()
         Me.Label20 = New System.Windows.Forms.Label()
         Me.TabPage10 = New System.Windows.Forms.TabPage()
+        Me.chkXAxisAutoMajGridInt = New System.Windows.Forms.CheckBox()
+        Me.txtXAxisMajGridInt = New System.Windows.Forms.TextBox()
+        Me.Label36 = New System.Windows.Forms.Label()
+        Me.chkXAxisAutoAnnotInt = New System.Windows.Forms.CheckBox()
+        Me.txtXAxisAnnotInt = New System.Windows.Forms.TextBox()
+        Me.Label27 = New System.Windows.Forms.Label()
         Me.chkXAxisAutoMax = New System.Windows.Forms.CheckBox()
         Me.chkXAxisAutoMin = New System.Windows.Forms.CheckBox()
         Me.DateTimePicker2 = New System.Windows.Forms.DateTimePicker()
@@ -142,6 +148,12 @@ Partial Class Main
         Me.FontDialog1 = New System.Windows.Forms.FontDialog()
         Me.OpenFileDialog1 = New System.Windows.Forms.OpenFileDialog()
         Me.ToolTip1 = New System.Windows.Forms.ToolTip(Me.components)
+        Me.chkYAxisAutoMajGridInt = New System.Windows.Forms.CheckBox()
+        Me.txtYAxisMajGridInt = New System.Windows.Forms.TextBox()
+        Me.Label26 = New System.Windows.Forms.Label()
+        Me.chkYAxisAutoAnnotInt = New System.Windows.Forms.CheckBox()
+        Me.txtYAxisAnnotInt = New System.Windows.Forms.TextBox()
+        Me.Label37 = New System.Windows.Forms.Label()
         Me.TabControl1.SuspendLayout()
         Me.TabPage1.SuspendLayout()
         Me.TabPage5.SuspendLayout()
@@ -837,7 +849,7 @@ Partial Class Main
         Me.TabControl3.Location = New System.Drawing.Point(3, 3)
         Me.TabControl3.Name = "TabControl3"
         Me.TabControl3.SelectedIndex = 0
-        Me.TabControl3.Size = New System.Drawing.Size(839, 418)
+        Me.TabControl3.Size = New System.Drawing.Size(794, 435)
         Me.TabControl3.TabIndex = 73
         '
         'TabPage8
@@ -853,7 +865,7 @@ Partial Class Main
         Me.TabPage8.Location = New System.Drawing.Point(4, 22)
         Me.TabPage8.Name = "TabPage8"
         Me.TabPage8.Padding = New System.Windows.Forms.Padding(3)
-        Me.TabPage8.Size = New System.Drawing.Size(831, 392)
+        Me.TabPage8.Size = New System.Drawing.Size(786, 409)
         Me.TabPage8.TabIndex = 0
         Me.TabPage8.Text = "Chart Type"
         Me.TabPage8.UseVisualStyleBackColor = True
@@ -882,7 +894,7 @@ Partial Class Main
         Me.txtChartDescr.Location = New System.Drawing.Point(6, 320)
         Me.txtChartDescr.Multiline = True
         Me.txtChartDescr.Name = "txtChartDescr"
-        Me.txtChartDescr.Size = New System.Drawing.Size(819, 66)
+        Me.txtChartDescr.Size = New System.Drawing.Size(774, 83)
         Me.txtChartDescr.TabIndex = 65
         '
         'Label2
@@ -936,8 +948,8 @@ Partial Class Main
         '
         Me.SplitContainer1.Panel2.Controls.Add(Me.DataGridView2)
         Me.SplitContainer1.Panel2.Controls.Add(Me.Label18)
-        Me.SplitContainer1.Size = New System.Drawing.Size(819, 281)
-        Me.SplitContainer1.SplitterDistance = 383
+        Me.SplitContainer1.Size = New System.Drawing.Size(774, 281)
+        Me.SplitContainer1.SplitterDistance = 361
         Me.SplitContainer1.TabIndex = 69
         '
         'DataGridView1
@@ -948,7 +960,7 @@ Partial Class Main
         Me.DataGridView1.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize
         Me.DataGridView1.Location = New System.Drawing.Point(6, 23)
         Me.DataGridView1.Name = "DataGridView1"
-        Me.DataGridView1.Size = New System.Drawing.Size(374, 255)
+        Me.DataGridView1.Size = New System.Drawing.Size(352, 255)
         Me.DataGridView1.TabIndex = 63
         '
         'Label17
@@ -968,7 +980,7 @@ Partial Class Main
         Me.DataGridView2.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize
         Me.DataGridView2.Location = New System.Drawing.Point(3, 23)
         Me.DataGridView2.Name = "DataGridView2"
-        Me.DataGridView2.Size = New System.Drawing.Size(418, 255)
+        Me.DataGridView2.Size = New System.Drawing.Size(395, 255)
         Me.DataGridView2.TabIndex = 67
         '
         'Label18
@@ -990,7 +1002,7 @@ Partial Class Main
         Me.TabPage9.Location = New System.Drawing.Point(4, 22)
         Me.TabPage9.Name = "TabPage9"
         Me.TabPage9.Padding = New System.Windows.Forms.Padding(3)
-        Me.TabPage9.Size = New System.Drawing.Size(831, 392)
+        Me.TabPage9.Size = New System.Drawing.Size(786, 409)
         Me.TabPage9.TabIndex = 1
         Me.TabPage9.Text = "Titles"
         Me.TabPage9.UseVisualStyleBackColor = True
@@ -1015,7 +1027,7 @@ Partial Class Main
         'btnChartTitleFont
         '
         Me.btnChartTitleFont.Anchor = CType((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
-        Me.btnChartTitleFont.Location = New System.Drawing.Point(771, 6)
+        Me.btnChartTitleFont.Location = New System.Drawing.Point(726, 6)
         Me.btnChartTitleFont.Name = "btnChartTitleFont"
         Me.btnChartTitleFont.Size = New System.Drawing.Size(54, 22)
         Me.btnChartTitleFont.TabIndex = 4
@@ -1028,7 +1040,7 @@ Partial Class Main
             Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
         Me.txtChartTitle.Location = New System.Drawing.Point(73, 8)
         Me.txtChartTitle.Name = "txtChartTitle"
-        Me.txtChartTitle.Size = New System.Drawing.Size(692, 20)
+        Me.txtChartTitle.Size = New System.Drawing.Size(647, 20)
         Me.txtChartTitle.TabIndex = 1
         '
         'Label20
@@ -1042,6 +1054,12 @@ Partial Class Main
         '
         'TabPage10
         '
+        Me.TabPage10.Controls.Add(Me.chkXAxisAutoMajGridInt)
+        Me.TabPage10.Controls.Add(Me.txtXAxisMajGridInt)
+        Me.TabPage10.Controls.Add(Me.Label36)
+        Me.TabPage10.Controls.Add(Me.chkXAxisAutoAnnotInt)
+        Me.TabPage10.Controls.Add(Me.txtXAxisAnnotInt)
+        Me.TabPage10.Controls.Add(Me.Label27)
         Me.TabPage10.Controls.Add(Me.chkXAxisAutoMax)
         Me.TabPage10.Controls.Add(Me.chkXAxisAutoMin)
         Me.TabPage10.Controls.Add(Me.DateTimePicker2)
@@ -1058,15 +1076,67 @@ Partial Class Main
         Me.TabPage10.Location = New System.Drawing.Point(4, 22)
         Me.TabPage10.Name = "TabPage10"
         Me.TabPage10.Padding = New System.Windows.Forms.Padding(3)
-        Me.TabPage10.Size = New System.Drawing.Size(831, 392)
+        Me.TabPage10.Size = New System.Drawing.Size(786, 409)
         Me.TabPage10.TabIndex = 2
         Me.TabPage10.Text = "X Axis"
         Me.TabPage10.UseVisualStyleBackColor = True
         '
+        'chkXAxisAutoMajGridInt
+        '
+        Me.chkXAxisAutoMajGridInt.AutoSize = True
+        Me.chkXAxisAutoMajGridInt.Location = New System.Drawing.Point(282, 170)
+        Me.chkXAxisAutoMajGridInt.Name = "chkXAxisAutoMajGridInt"
+        Me.chkXAxisAutoMajGridInt.Size = New System.Drawing.Size(48, 17)
+        Me.chkXAxisAutoMajGridInt.TabIndex = 23
+        Me.chkXAxisAutoMajGridInt.Text = "Auto"
+        Me.chkXAxisAutoMajGridInt.UseVisualStyleBackColor = True
+        '
+        'txtXAxisMajGridInt
+        '
+        Me.txtXAxisMajGridInt.Location = New System.Drawing.Point(113, 168)
+        Me.txtXAxisMajGridInt.Name = "txtXAxisMajGridInt"
+        Me.txtXAxisMajGridInt.Size = New System.Drawing.Size(163, 20)
+        Me.txtXAxisMajGridInt.TabIndex = 22
+        '
+        'Label36
+        '
+        Me.Label36.AutoSize = True
+        Me.Label36.Location = New System.Drawing.Point(9, 171)
+        Me.Label36.Name = "Label36"
+        Me.Label36.Size = New System.Drawing.Size(93, 13)
+        Me.Label36.TabIndex = 21
+        Me.Label36.Text = "Major grid interval:"
+        '
+        'chkXAxisAutoAnnotInt
+        '
+        Me.chkXAxisAutoAnnotInt.AutoSize = True
+        Me.chkXAxisAutoAnnotInt.Location = New System.Drawing.Point(282, 145)
+        Me.chkXAxisAutoAnnotInt.Name = "chkXAxisAutoAnnotInt"
+        Me.chkXAxisAutoAnnotInt.Size = New System.Drawing.Size(48, 17)
+        Me.chkXAxisAutoAnnotInt.TabIndex = 20
+        Me.chkXAxisAutoAnnotInt.Text = "Auto"
+        Me.chkXAxisAutoAnnotInt.UseVisualStyleBackColor = True
+        '
+        'txtXAxisAnnotInt
+        '
+        Me.txtXAxisAnnotInt.Location = New System.Drawing.Point(113, 143)
+        Me.txtXAxisAnnotInt.Name = "txtXAxisAnnotInt"
+        Me.txtXAxisAnnotInt.Size = New System.Drawing.Size(163, 20)
+        Me.txtXAxisAnnotInt.TabIndex = 19
+        '
+        'Label27
+        '
+        Me.Label27.AutoSize = True
+        Me.Label27.Location = New System.Drawing.Point(9, 146)
+        Me.Label27.Name = "Label27"
+        Me.Label27.Size = New System.Drawing.Size(98, 13)
+        Me.Label27.TabIndex = 18
+        Me.Label27.Text = "Annotation interval:"
+        '
         'chkXAxisAutoMax
         '
         Me.chkXAxisAutoMax.AutoSize = True
-        Me.chkXAxisAutoMax.Location = New System.Drawing.Point(302, 110)
+        Me.chkXAxisAutoMax.Location = New System.Drawing.Point(605, 83)
         Me.chkXAxisAutoMax.Name = "chkXAxisAutoMax"
         Me.chkXAxisAutoMax.Size = New System.Drawing.Size(48, 17)
         Me.chkXAxisAutoMax.TabIndex = 17
@@ -1076,7 +1146,7 @@ Partial Class Main
         'chkXAxisAutoMin
         '
         Me.chkXAxisAutoMin.AutoSize = True
-        Me.chkXAxisAutoMin.Location = New System.Drawing.Point(6, 108)
+        Me.chkXAxisAutoMin.Location = New System.Drawing.Point(282, 83)
         Me.chkXAxisAutoMin.Name = "chkXAxisAutoMin"
         Me.chkXAxisAutoMin.Size = New System.Drawing.Size(48, 17)
         Me.chkXAxisAutoMin.TabIndex = 16
@@ -1092,14 +1162,14 @@ Partial Class Main
         '
         'DateTimePicker1
         '
-        Me.DateTimePicker1.Location = New System.Drawing.Point(356, 107)
+        Me.DateTimePicker1.Location = New System.Drawing.Point(397, 107)
         Me.DateTimePicker1.Name = "DateTimePicker1"
         Me.DateTimePicker1.Size = New System.Drawing.Size(202, 20)
         Me.DateTimePicker1.TabIndex = 14
         '
         'txtXAxisMax
         '
-        Me.txtXAxisMax.Location = New System.Drawing.Point(356, 81)
+        Me.txtXAxisMax.Location = New System.Drawing.Point(397, 81)
         Me.txtXAxisMax.Name = "txtXAxisMax"
         Me.txtXAxisMax.Size = New System.Drawing.Size(202, 20)
         Me.txtXAxisMax.TabIndex = 13
@@ -1107,7 +1177,7 @@ Partial Class Main
         'Label21
         '
         Me.Label21.AutoSize = True
-        Me.Label21.Location = New System.Drawing.Point(299, 84)
+        Me.Label21.Location = New System.Drawing.Point(361, 87)
         Me.Label21.Name = "Label21"
         Me.Label21.Size = New System.Drawing.Size(30, 13)
         Me.Label21.TabIndex = 12
@@ -1123,7 +1193,7 @@ Partial Class Main
         'Label22
         '
         Me.Label22.AutoSize = True
-        Me.Label22.Location = New System.Drawing.Point(6, 84)
+        Me.Label22.Location = New System.Drawing.Point(41, 87)
         Me.Label22.Name = "Label22"
         Me.Label22.Size = New System.Drawing.Size(27, 13)
         Me.Label22.TabIndex = 10
@@ -1149,7 +1219,7 @@ Partial Class Main
         'btnXAxisTitleFont
         '
         Me.btnXAxisTitleFont.Anchor = CType((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
-        Me.btnXAxisTitleFont.Location = New System.Drawing.Point(761, 5)
+        Me.btnXAxisTitleFont.Location = New System.Drawing.Point(716, 5)
         Me.btnXAxisTitleFont.Name = "btnXAxisTitleFont"
         Me.btnXAxisTitleFont.Size = New System.Drawing.Size(64, 22)
         Me.btnXAxisTitleFont.TabIndex = 2
@@ -1162,7 +1232,7 @@ Partial Class Main
             Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
         Me.txtXAxisTitle.Location = New System.Drawing.Point(74, 6)
         Me.txtXAxisTitle.Name = "txtXAxisTitle"
-        Me.txtXAxisTitle.Size = New System.Drawing.Size(681, 20)
+        Me.txtXAxisTitle.Size = New System.Drawing.Size(636, 20)
         Me.txtXAxisTitle.TabIndex = 1
         '
         'Label24
@@ -1176,6 +1246,12 @@ Partial Class Main
         '
         'TabPage11
         '
+        Me.TabPage11.Controls.Add(Me.chkYAxisAutoMajGridInt)
+        Me.TabPage11.Controls.Add(Me.txtYAxisMajGridInt)
+        Me.TabPage11.Controls.Add(Me.Label26)
+        Me.TabPage11.Controls.Add(Me.chkYAxisAutoAnnotInt)
+        Me.TabPage11.Controls.Add(Me.txtYAxisAnnotInt)
+        Me.TabPage11.Controls.Add(Me.Label37)
         Me.TabPage11.Controls.Add(Me.chkYAxisAutoMax)
         Me.TabPage11.Controls.Add(Me.DateTimePicker4)
         Me.TabPage11.Controls.Add(Me.DateTimePicker3)
@@ -1192,7 +1268,7 @@ Partial Class Main
         Me.TabPage11.Location = New System.Drawing.Point(4, 22)
         Me.TabPage11.Name = "TabPage11"
         Me.TabPage11.Padding = New System.Windows.Forms.Padding(3)
-        Me.TabPage11.Size = New System.Drawing.Size(831, 392)
+        Me.TabPage11.Size = New System.Drawing.Size(786, 409)
         Me.TabPage11.TabIndex = 3
         Me.TabPage11.Text = "Y Axis"
         Me.TabPage11.UseVisualStyleBackColor = True
@@ -1283,7 +1359,7 @@ Partial Class Main
         'btnYAxisTitleFont
         '
         Me.btnYAxisTitleFont.Anchor = CType((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
-        Me.btnYAxisTitleFont.Location = New System.Drawing.Point(761, 4)
+        Me.btnYAxisTitleFont.Location = New System.Drawing.Point(716, 4)
         Me.btnYAxisTitleFont.Name = "btnYAxisTitleFont"
         Me.btnYAxisTitleFont.Size = New System.Drawing.Size(64, 22)
         Me.btnYAxisTitleFont.TabIndex = 2
@@ -1296,7 +1372,7 @@ Partial Class Main
             Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
         Me.txtYAxisTitle.Location = New System.Drawing.Point(74, 6)
         Me.txtYAxisTitle.Name = "txtYAxisTitle"
-        Me.txtYAxisTitle.Size = New System.Drawing.Size(681, 20)
+        Me.txtYAxisTitle.Size = New System.Drawing.Size(636, 20)
         Me.txtYAxisTitle.TabIndex = 1
         '
         'Label30
@@ -1314,6 +1390,58 @@ Partial Class Main
         'OpenFileDialog1
         '
         Me.OpenFileDialog1.FileName = "OpenFileDialog1"
+        '
+        'chkYAxisAutoMajGridInt
+        '
+        Me.chkYAxisAutoMajGridInt.AutoSize = True
+        Me.chkYAxisAutoMajGridInt.Location = New System.Drawing.Point(282, 170)
+        Me.chkYAxisAutoMajGridInt.Name = "chkYAxisAutoMajGridInt"
+        Me.chkYAxisAutoMajGridInt.Size = New System.Drawing.Size(48, 17)
+        Me.chkYAxisAutoMajGridInt.TabIndex = 29
+        Me.chkYAxisAutoMajGridInt.Text = "Auto"
+        Me.chkYAxisAutoMajGridInt.UseVisualStyleBackColor = True
+        '
+        'txtYAxisMajGridInt
+        '
+        Me.txtYAxisMajGridInt.Location = New System.Drawing.Point(113, 168)
+        Me.txtYAxisMajGridInt.Name = "txtYAxisMajGridInt"
+        Me.txtYAxisMajGridInt.Size = New System.Drawing.Size(163, 20)
+        Me.txtYAxisMajGridInt.TabIndex = 28
+        '
+        'Label26
+        '
+        Me.Label26.AutoSize = True
+        Me.Label26.Location = New System.Drawing.Point(9, 171)
+        Me.Label26.Name = "Label26"
+        Me.Label26.Size = New System.Drawing.Size(93, 13)
+        Me.Label26.TabIndex = 27
+        Me.Label26.Text = "Major grid interval:"
+        '
+        'chkYAxisAutoAnnotInt
+        '
+        Me.chkYAxisAutoAnnotInt.AutoSize = True
+        Me.chkYAxisAutoAnnotInt.Location = New System.Drawing.Point(282, 145)
+        Me.chkYAxisAutoAnnotInt.Name = "chkYAxisAutoAnnotInt"
+        Me.chkYAxisAutoAnnotInt.Size = New System.Drawing.Size(48, 17)
+        Me.chkYAxisAutoAnnotInt.TabIndex = 26
+        Me.chkYAxisAutoAnnotInt.Text = "Auto"
+        Me.chkYAxisAutoAnnotInt.UseVisualStyleBackColor = True
+        '
+        'txtYAxisAnnotInt
+        '
+        Me.txtYAxisAnnotInt.Location = New System.Drawing.Point(113, 143)
+        Me.txtYAxisAnnotInt.Name = "txtYAxisAnnotInt"
+        Me.txtYAxisAnnotInt.Size = New System.Drawing.Size(163, 20)
+        Me.txtYAxisAnnotInt.TabIndex = 25
+        '
+        'Label37
+        '
+        Me.Label37.AutoSize = True
+        Me.Label37.Location = New System.Drawing.Point(9, 146)
+        Me.Label37.Name = "Label37"
+        Me.Label37.Size = New System.Drawing.Size(98, 13)
+        Me.Label37.TabIndex = 24
+        Me.Label37.Text = "Annotation interval:"
         '
         'Main
         '
@@ -1477,4 +1605,16 @@ Partial Class Main
     Friend WithEvents btnNewChartWindow As Button
     Friend WithEvents btnApplyQuery As Button
     Friend WithEvents ToolTip1 As ToolTip
+    Friend WithEvents chkXAxisAutoMajGridInt As CheckBox
+    Friend WithEvents txtXAxisMajGridInt As TextBox
+    Friend WithEvents Label36 As Label
+    Friend WithEvents chkXAxisAutoAnnotInt As CheckBox
+    Friend WithEvents txtXAxisAnnotInt As TextBox
+    Friend WithEvents Label27 As Label
+    Friend WithEvents chkYAxisAutoMajGridInt As CheckBox
+    Friend WithEvents txtYAxisMajGridInt As TextBox
+    Friend WithEvents Label26 As Label
+    Friend WithEvents chkYAxisAutoAnnotInt As CheckBox
+    Friend WithEvents txtYAxisAnnotInt As TextBox
+    Friend WithEvents Label37 As Label
 End Class

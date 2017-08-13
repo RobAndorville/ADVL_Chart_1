@@ -216,6 +216,17 @@ Public Class Main
             _inputDataType = value
         End Set
     End Property
+
+    Private _inputDatabaseDirectory As String = "" 'The directory of the Input Database. When the Find database button is pressed, the Open File Dialog will open in this directory.
+    Property InputDatabaseDirectory As String
+        Get
+            Return _inputDatabaseDirectory
+        End Get
+        Set(value As String)
+            _inputDatabaseDirectory = value
+        End Set
+    End Property
+
     Private _inputDatabasePath As String = ""
     Property InputDatabasePath As String
         Get
@@ -298,6 +309,7 @@ Public Class Main
                                <!---->
                                <InputDataType><%= InputDataType %></InputDataType>
                                <InputDatabasePath><%= InputDatabasePath %></InputDatabasePath>
+                               <InputDatabaseDirectory><%= InputDatabaseDirectory %></InputDatabaseDirectory>
                                <InputDataDescription><%= InputDataDescr %></InputDataDescription>
                                <InputQuery><%= InputQuery %></InputQuery>
                                <ChartType><%= ChartType.ToString %></ChartType>
@@ -343,6 +355,10 @@ Public Class Main
             If Settings.<FormSettings>.<InputDatabasePath>.Value <> Nothing Then
                 InputDatabasePath = Settings.<FormSettings>.<InputDatabasePath>.Value
                 txtDatabasePath.Text = InputDatabasePath
+            End If
+
+            If Settings.<FormSettings>.<InputDatabaseDirectory>.Value <> Nothing Then
+                InputDatabaseDirectory = Settings.<FormSettings>.<InputDatabaseDirectory>.Value
             End If
 
             If Settings.<FormSettings>.<InputQuery>.Value <> Nothing Then InputQuery = Settings.<FormSettings>.<InputQuery>.Value
@@ -1095,17 +1111,24 @@ Public Class Main
         OpenFileDialog1.Filter = "Access Database |*.accdb"
         OpenFileDialog1.FileName = ""
 
-        If txtDatabasePath.Text <> "" Then
-            Dim fInfo As New System.IO.FileInfo(txtDatabasePath.Text)
-            OpenFileDialog1.InitialDirectory = fInfo.DirectoryName
-            OpenFileDialog1.FileName = fInfo.Name
+        If InputDatabaseDirectory <> "" Then
+            OpenFileDialog1.InitialDirectory = InputDatabaseDirectory
         End If
+
+
+        'If txtDatabasePath.Text <> "" Then
+        '    Dim fInfo As New System.IO.FileInfo(txtDatabasePath.Text)
+        '    OpenFileDialog1.InitialDirectory = fInfo.DirectoryName
+        '    OpenFileDialog1.FileName = fInfo.Name
+        'End If
 
         OpenFileDialog1.ShowDialog()
         'txtDatabase.Text = OpenFileDialog1.FileName
         'txtDatabasePath.Text = OpenFileDialog1.FileName 'txtDatabasePath.Text is now updated when the InputDatabasePath property is set.
         'InputDatabasePath = txtDatabasePath.Text
         InputDatabasePath = OpenFileDialog1.FileName
+        InputDatabaseDirectory = System.IO.Path.GetDirectoryName(OpenFileDialog1.FileName)
+        Message.Add("InputDatabaseDirectory = " & InputDatabaseDirectory & vbCrLf)
 
         FillLstTables()
     End Sub
@@ -1788,35 +1811,36 @@ Public Class Main
             'For Each item In Chart1.Series(PointChart.SeriesName).Points()
 
             'Next
-            Dim NRows As Integer = ds.Tables(0).Rows.Count
-            Dim I As Integer
-            For I = 0 To NRows - 1
-                'If ds.Tables(0).Rows(I).Item("Total_Profit_pct") = DBNull Then
-                If IsDBNull(ds.Tables(0).Rows(I).Item("Total_Profit_pct")) Then
-                Else
-                    'If ds.Tables(0).Rows(I).Item("Total_Profit_pct") > 0 Then
-                    '    Chart1.Series(PointChart.SeriesName).Points(I).MarkerColor = Color.Black
-                    'Else
-                    '    Chart1.Series(PointChart.SeriesName).Points(I).MarkerColor = Color.Red
-                    'End If
-                    If ds.Tables(0).Rows(I).Item("Total_Profit_pct") > 100 Then
-                        Chart1.Series(PointChart.SeriesName).Points(I).MarkerColor = Color.Black
-                    ElseIf ds.Tables(0).Rows(I).Item("Total_Profit_pct") > 50 Then
-                        Chart1.Series(PointChart.SeriesName).Points(I).MarkerColor = Color.DarkGray
-                    ElseIf ds.Tables(0).Rows(I).Item("Total_Profit_pct") > 10 Then
-                        Chart1.Series(PointChart.SeriesName).Points(I).MarkerColor = Color.Gray
-                    ElseIf ds.Tables(0).Rows(I).Item("Total_Profit_pct") > 0 Then
-                        Chart1.Series(PointChart.SeriesName).Points(I).MarkerColor = Color.LightGray
-                    ElseIf ds.Tables(0).Rows(I).Item("Total_Profit_pct") > -10 Then
-                        Chart1.Series(PointChart.SeriesName).Points(I).MarkerColor = Color.LightPink
-                    ElseIf ds.Tables(0).Rows(I).Item("Total_Profit_pct") > -50 Then
-                        Chart1.Series(PointChart.SeriesName).Points(I).MarkerColor = Color.Pink
-                    Else
-                        Chart1.Series(PointChart.SeriesName).Points(I).MarkerColor = Color.Red
-                    End If
-                End If
 
-            Next
+            ''NOTE: This code was used to color code the points according to the "Total_Profit_pct" data field in the Greenblatt analysis table.
+            'Dim NRows As Integer = ds.Tables(0).Rows.Count
+            'Dim I As Integer
+            'For I = 0 To NRows - 1
+            '    'If ds.Tables(0).Rows(I).Item("Total_Profit_pct") = DBNull Then
+            '    If IsDBNull(ds.Tables(0).Rows(I).Item("Total_Profit_pct")) Then
+            '    Else
+            '        'If ds.Tables(0).Rows(I).Item("Total_Profit_pct") > 0 Then
+            '        '    Chart1.Series(PointChart.SeriesName).Points(I).MarkerColor = Color.Black
+            '        'Else
+            '        '    Chart1.Series(PointChart.SeriesName).Points(I).MarkerColor = Color.Red
+            '        'End If
+            '        If ds.Tables(0).Rows(I).Item("Total_Profit_pct") > 100 Then
+            '            Chart1.Series(PointChart.SeriesName).Points(I).MarkerColor = Color.Black
+            '        ElseIf ds.Tables(0).Rows(I).Item("Total_Profit_pct") > 50 Then
+            '            Chart1.Series(PointChart.SeriesName).Points(I).MarkerColor = Color.DarkGray
+            '        ElseIf ds.Tables(0).Rows(I).Item("Total_Profit_pct") > 10 Then
+            '            Chart1.Series(PointChart.SeriesName).Points(I).MarkerColor = Color.Gray
+            '        ElseIf ds.Tables(0).Rows(I).Item("Total_Profit_pct") > 0 Then
+            '            Chart1.Series(PointChart.SeriesName).Points(I).MarkerColor = Color.LightGray
+            '        ElseIf ds.Tables(0).Rows(I).Item("Total_Profit_pct") > -10 Then
+            '            Chart1.Series(PointChart.SeriesName).Points(I).MarkerColor = Color.LightPink
+            '        ElseIf ds.Tables(0).Rows(I).Item("Total_Profit_pct") > -50 Then
+            '            Chart1.Series(PointChart.SeriesName).Points(I).MarkerColor = Color.Pink
+            '        Else
+            '            Chart1.Series(PointChart.SeriesName).Points(I).MarkerColor = Color.Red
+            '        End If
+            '    End If
+            'Next
 
             If PointChart.EmptyPointValue <> "" Then Chart1.Series(PointChart.SeriesName).SetCustomProperty("EmptyPointValue", PointChart.EmptyPointValue)
         If PointChart.LabelStyle <> "" Then Chart1.Series(PointChart.SeriesName).SetCustomProperty("LabelStyle", PointChart.LabelStyle)
@@ -1835,23 +1859,57 @@ Public Class Main
             Chart1.ChartAreas(0).AxisY.Maximum = PointChart.YAxis.Maximum
         End If
 
-        Chart1.ChartAreas(0).AxisY.MajorGrid.Interval = 5 'Set the grid interval 
-        Chart1.ChartAreas(0).AxisY.Interval = 5 'Set the annotation interval
+            'Chart1.ChartAreas(0).AxisY.MajorGrid.Interval = 5 'Set the grid interval 
+            'Chart1.ChartAreas(0).AxisY.Interval = 5 'Set the annotation interval
 
-        'Specify X Axis range: ------------------------------------------------------------------------------
-        If PointChart.XAxis.AutoMinimum = True Then
+            'Chart1.ChartAreas(0).AxisY.MajorGrid.Interval = [Double].NaN 'Default?
+            'Chart1.ChartAreas(0).AxisY.Interval = [Double].NaN 'Default?
+
+            'Chart1.ChartAreas(0).AxisY.MajorGrid.Interval = 0 'Default
+            'Chart1.ChartAreas(0).AxisY.Interval = 0 'Default
+
+            'Specify Y Axis annotation and major grid intervals: -----------------------------------------------------
+            If PointChart.YAxis.AutoInterval = True Then
+                Chart1.ChartAreas(0).AxisY.Interval = 0
+            Else
+                Chart1.ChartAreas(0).AxisY.Interval = PointChart.YAxis.Interval
+            End If
+
+            If PointChart.YAxis.AutoMajorGridInterval = True Then
+                Chart1.ChartAreas(0).AxisY.MajorGrid.Interval = 0
+                Message.Add("Y Axis major grid interval is automatic." & vbCrLf)
+            Else
+                Chart1.ChartAreas(0).AxisY.MajorGrid.Interval = PointChart.YAxis.MajorGridInterval
+            End If
+
+            'Specify X Axis range: ------------------------------------------------------------------------------
+            If PointChart.XAxis.AutoMinimum = True Then
             Chart1.ChartAreas(0).AxisX.Minimum = [Double].NaN
         Else
             Chart1.ChartAreas(0).AxisX.Minimum = PointChart.XAxis.Minimum
         End If
-        If PointChart.XAxis.AutoMaximum = True Then
-            Chart1.ChartAreas(0).AxisX.Maximum = [Double].NaN
-        Else
-            Chart1.ChartAreas(0).AxisX.Maximum = PointChart.XAxis.Maximum
-        End If
+            If PointChart.XAxis.AutoMaximum = True Then
+                Chart1.ChartAreas(0).AxisX.Maximum = [Double].NaN
+            Else
+                Chart1.ChartAreas(0).AxisX.Maximum = PointChart.XAxis.Maximum
+            End If
 
-        'Specify X Axis label: ------------------------------------------------------------------------------------
-        Chart1.ChartAreas(0).AxisX.TitleAlignment = PointChart.XAxis.TitleAlignment
+            'Specify X Axis annotation and major grid intervals: -----------------------------------------------------
+            If PointChart.XAxis.AutoInterval = True Then
+                Chart1.ChartAreas(0).AxisX.Interval = 0
+            Else
+                Chart1.ChartAreas(0).AxisX.Interval = PointChart.XAxis.Interval
+            End If
+
+            If PointChart.XAxis.AutoMajorGridInterval = True Then
+                Chart1.ChartAreas(0).AxisX.MajorGrid.Interval = 0
+                Message.Add("X Axis major grid interval is automatic." & vbCrLf)
+            Else
+                Chart1.ChartAreas(0).AxisX.MajorGrid.Interval = PointChart.XAxis.MajorGridInterval
+            End If
+
+            'Specify X Axis label: ------------------------------------------------------------------------------------
+            Chart1.ChartAreas(0).AxisX.TitleAlignment = PointChart.XAxis.TitleAlignment
 
         Dim myFontStyle As FontStyle = FontStyle.Regular
         If PointChart.XAxis.Title.Bold Then
@@ -2077,6 +2135,14 @@ Public Class Main
         txtXAxisMin.Text = PointChart.XAxis.Minimum
         txtXAxisMax.Text = PointChart.XAxis.Maximum
 
+        chkXAxisAutoAnnotInt.Checked = PointChart.XAxis.AutoInterval
+        chkXAxisAutoMajGridInt.Checked = PointChart.XAxis.AutoMajorGridInterval
+
+        txtXAxisAnnotInt.Text = PointChart.XAxis.Interval
+        txtXAxisMajGridInt.Text = PointChart.XAxis.MajorGridInterval
+
+
+
         'Update the YAxis settings: -----------------------------------------------------------------------------
         txtYAxisTitle.Text = PointChart.YAxis.Title.Text
         txtYAxisTitle.ForeColor = Color.FromName(PointChart.YAxis.Title.Color)
@@ -2102,6 +2168,12 @@ Public Class Main
 
         txtYAxisMin.Text = PointChart.YAxis.Minimum
         txtYAxisMax.Text = PointChart.YAxis.Maximum
+
+        chkYAxisAutoAnnotInt.Checked = PointChart.YAxis.AutoInterval
+        chkYAxisAutoMajGridInt.Checked = PointChart.YAxis.AutoMajorGridInterval
+
+        txtYAxisAnnotInt.Text = PointChart.YAxis.Interval
+        txtYAxisMajGridInt.Text = PointChart.YAxis.MajorGridInterval
 
         'Update chart File Name:
         txtChartFileName.Text = PointChart.FileName
@@ -2157,12 +2229,19 @@ Public Class Main
         End If
 
         'Update Point Chart label settings:
-        PointChart.ChartLabel.FontName = FontDialog1.Font.Name
-        PointChart.ChartLabel.Size = FontDialog1.Font.Size
-        PointChart.ChartLabel.Bold = FontDialog1.Font.Bold
-        PointChart.ChartLabel.Italic = FontDialog1.Font.Italic
-        PointChart.ChartLabel.Strikeout = FontDialog1.Font.Strikeout
-        PointChart.ChartLabel.Underline = FontDialog1.Font.Underline
+        'PointChart.ChartLabel.FontName = FontDialog1.Font.Name
+        'PointChart.ChartLabel.Size = FontDialog1.Font.Size
+        'PointChart.ChartLabel.Bold = FontDialog1.Font.Bold
+        'PointChart.ChartLabel.Italic = FontDialog1.Font.Italic
+        'PointChart.ChartLabel.Strikeout = FontDialog1.Font.Strikeout
+        'PointChart.ChartLabel.Underline = FontDialog1.Font.Underline
+        'PointChart.ChartLabel.Text = txtChartTitle.Text
+        PointChart.ChartLabel.FontName = txtChartTitle.Font.Name
+        PointChart.ChartLabel.Size = txtChartTitle.Font.Size
+        PointChart.ChartLabel.Bold = txtChartTitle.Font.Bold
+        PointChart.ChartLabel.Italic = txtChartTitle.Font.Italic
+        PointChart.ChartLabel.Strikeout = txtChartTitle.Font.Strikeout
+        PointChart.ChartLabel.Underline = txtChartTitle.Font.Underline
         PointChart.ChartLabel.Text = txtChartTitle.Text
         If IsNothing(cmbAlignment.SelectedItem) Then
         Else
@@ -2194,6 +2273,24 @@ Public Class Main
         PointChart.XAxis.Minimum = Val(txtXAxisMin.Text)
         PointChart.XAxis.Maximum = Val(txtXAxisMax.Text)
 
+        If chkXAxisAutoAnnotInt.Checked = True Then
+            PointChart.XAxis.Interval = 0 '0 indicates auto annotation.
+            PointChart.XAxis.AutoInterval = True
+        Else
+            PointChart.XAxis.Interval = Val(txtXAxisAnnotInt.Text)
+            PointChart.XAxis.AutoInterval = False
+        End If
+
+        If chkXAxisAutoMajGridInt.Checked = True Then
+            PointChart.XAxis.MajorGridInterval = 0
+            PointChart.XAxis.AutoMajorGridInterval = True
+            'Message.Add("X Axis major grid interval set to auto." & vbCrLf)
+        Else
+            PointChart.XAxis.MajorGridInterval = Val(txtXAxisMajGridInt.Text)
+            PointChart.XAxis.AutoMajorGridInterval = False
+            'Message.Add("X Axis major grid interval set to: " & txtXAxisMajGridInt.Text & vbCrLf)
+        End If
+
         'Update Y Axis settings:
         PointChart.YAxis.Title.FontName = txtYAxisTitle.Font.Name
         PointChart.YAxis.Title.Size = txtYAxisTitle.Font.Size
@@ -2218,6 +2315,24 @@ Public Class Main
 
         PointChart.YAxis.Minimum = Val(txtYAxisMin.Text)
         PointChart.YAxis.Maximum = Val(txtYAxisMax.Text)
+
+        If chkYAxisAutoAnnotInt.Checked = True Then
+            PointChart.YAxis.Interval = 0 '0 indicates auto annotation.
+            PointChart.YAxis.AutoInterval = True
+        Else
+            PointChart.YAxis.Interval = Val(txtYAxisAnnotInt.Text)
+            PointChart.YAxis.AutoInterval = False
+        End If
+
+        If chkYAxisAutoMajGridInt.Checked = True Then
+            PointChart.YAxis.MajorGridInterval = 0
+            PointChart.YAxis.AutoMajorGridInterval = True
+            'Message.Add("Y Axis major grid interval set to auto." & vbCrLf)
+        Else
+            PointChart.YAxis.MajorGridInterval = Val(txtYAxisMajGridInt.Text)
+            PointChart.YAxis.AutoMajorGridInterval = False
+            'Message.Add("Y Axis major grid interval set to:" & txtYAxisMajGridInt.Text & vbCrLf)
+        End If
 
     End Sub
 
@@ -2917,6 +3032,22 @@ Public Class Main
         txtXAxisMax.Text = Str(DateValue(DateTimePicker1.Value).ToOADate)
     End Sub
 
+    Private Sub chkXAxisAutoAnnotInt_CheckedChanged(sender As Object, e As EventArgs) Handles chkXAxisAutoAnnotInt.CheckedChanged
+        If chkXAxisAutoAnnotInt.Checked = True Then
+            txtXAxisAnnotInt.Enabled = False
+        Else
+            txtXAxisAnnotInt.Enabled = True
+        End If
+    End Sub
+
+    Private Sub chkXAxisAutoMajGridInt_CheckedChanged(sender As Object, e As EventArgs) Handles chkXAxisAutoMajGridInt.CheckedChanged
+        If chkXAxisAutoMajGridInt.Checked = True Then
+            txtXAxisMajGridInt.Enabled = False
+        Else
+            txtXAxisMajGridInt.Enabled = True
+        End If
+    End Sub
+
     Private Sub btnYAxisTitleFont_Click(sender As Object, e As EventArgs) Handles btnYAxisTitleFont.Click
         FontDialog1.Font = txtYAxisTitle.Font
         FontDialog1.ShowDialog()
@@ -2949,9 +3080,26 @@ Public Class Main
         txtYAxisMax.Text = Str(DateValue(DateTimePicker4.Value).ToOADate)
     End Sub
 
+    Private Sub chkYAxisAutoAnnotInt_CheckedChanged(sender As Object, e As EventArgs) Handles chkYAxisAutoAnnotInt.CheckedChanged
+        If chkYAxisAutoAnnotInt.Checked = True Then
+            txtYAxisAnnotInt.Enabled = False
+        Else
+            txtYAxisAnnotInt.Enabled = True
+        End If
+    End Sub
+
+    Private Sub chkYAxisAutoMajGridInt_CheckedChanged(sender As Object, e As EventArgs) Handles chkYAxisAutoMajGridInt.CheckedChanged
+        If chkYAxisAutoMajGridInt.Checked = True Then
+            txtYAxisMajGridInt.Enabled = False
+        Else
+            txtYAxisMajGridInt.Enabled = True
+        End If
+    End Sub
+
     Private Sub TabPage4_Leave(sender As Object, e As EventArgs) Handles TabPage4.Leave
         'Apply chart settings (leaving Chart Settings Tab)
         UpdateChartSettings()
+        Message.Add("Leaving the Settings tab. " & vbCrLf)
     End Sub
 
 #End Region 'Chart Settings Tab -------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -3820,6 +3968,10 @@ Public Class Main
     Private Sub txtDatabasePath_TextChanged(sender As Object, e As EventArgs) Handles txtDatabasePath.TextChanged
 
     End Sub
+
+
+
+
 
 
 

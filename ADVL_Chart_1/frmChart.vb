@@ -622,31 +622,31 @@
             Chart1.Series(PointChart.SeriesName).Points.DataBindXY(ds.Tables(0).DefaultView, PointChart.XValuesFieldName, ds.Tables(0).DefaultView, PointChart.YValuesFieldName)
             Chart1.Series(PointChart.SeriesName).ChartType = DataVisualization.Charting.SeriesChartType.Point
 
-            Dim NRows As Integer = ds.Tables(0).Rows.Count
-            Dim I As Integer
+            'Dim NRows As Integer = ds.Tables(0).Rows.Count
+            'Dim I As Integer
 
-            For I = 0 To NRows - 1
-                If IsDBNull(ds.Tables(0).Rows(I).Item("Total_Profit_pct")) Then
+            'For I = 0 To NRows - 1
+            '    If IsDBNull(ds.Tables(0).Rows(I).Item("Total_Profit_pct")) Then
 
-                Else
-                    If ds.Tables(0).Rows(I).Item("Total_Profit_pct") > 100 Then
-                        Chart1.Series(PointChart.SeriesName).Points(I).MarkerColor = Color.Black
-                    ElseIf ds.Tables(0).Rows(I).Item("Total_Profit_pct") > 50 Then
-                        Chart1.Series(PointChart.SeriesName).Points(I).MarkerColor = Color.DarkGray
-                    ElseIf ds.Tables(0).Rows(I).Item("Total_Profit_pct") > 10 Then
-                        Chart1.Series(PointChart.SeriesName).Points(I).MarkerColor = Color.Gray
-                    ElseIf ds.Tables(0).Rows(I).Item("Total_Profit_pct") > 0 Then
-                        Chart1.Series(PointChart.SeriesName).Points(I).MarkerColor = Color.LightGray
-                    ElseIf ds.Tables(0).Rows(I).Item("Total_Profit_pct") > -10 Then
-                        Chart1.Series(PointChart.SeriesName).Points(I).MarkerColor = Color.LightPink
-                    ElseIf ds.Tables(0).Rows(I).Item("Total_Profit_pct") > -50 Then
-                        Chart1.Series(PointChart.SeriesName).Points(I).MarkerColor = Color.Pink
-                    Else
-                        Chart1.Series(PointChart.SeriesName).Points(I).MarkerColor = Color.Red
-                    End If
+            '    Else
+            '        If ds.Tables(0).Rows(I).Item("Total_Profit_pct") > 100 Then
+            '            Chart1.Series(PointChart.SeriesName).Points(I).MarkerColor = Color.Black
+            '        ElseIf ds.Tables(0).Rows(I).Item("Total_Profit_pct") > 50 Then
+            '            Chart1.Series(PointChart.SeriesName).Points(I).MarkerColor = Color.DarkGray
+            '        ElseIf ds.Tables(0).Rows(I).Item("Total_Profit_pct") > 10 Then
+            '            Chart1.Series(PointChart.SeriesName).Points(I).MarkerColor = Color.Gray
+            '        ElseIf ds.Tables(0).Rows(I).Item("Total_Profit_pct") > 0 Then
+            '            Chart1.Series(PointChart.SeriesName).Points(I).MarkerColor = Color.LightGray
+            '        ElseIf ds.Tables(0).Rows(I).Item("Total_Profit_pct") > -10 Then
+            '            Chart1.Series(PointChart.SeriesName).Points(I).MarkerColor = Color.LightPink
+            '        ElseIf ds.Tables(0).Rows(I).Item("Total_Profit_pct") > -50 Then
+            '            Chart1.Series(PointChart.SeriesName).Points(I).MarkerColor = Color.Pink
+            '        Else
+            '            Chart1.Series(PointChart.SeriesName).Points(I).MarkerColor = Color.Red
+            '        End If
 
-                End If
-            Next
+            '    End If
+            'Next
 
             If PointChart.EmptyPointValue <> "" Then Chart1.Series(PointChart.SeriesName).SetCustomProperty("EmptyPointValue", PointChart.EmptyPointValue)
             If PointChart.LabelStyle <> "" Then Chart1.Series(PointChart.SeriesName).SetCustomProperty("LabelStyle", PointChart.LabelStyle)
@@ -668,6 +668,21 @@
             Chart1.ChartAreas(0).AxisY.MajorGrid.Interval = 5 'Set the grid interval 
             Chart1.ChartAreas(0).AxisY.Interval = 5 'Set the annotation interval
 
+            'Specify Y Axis annotation and major grid intervals: -----------------------------------------------------
+            If PointChart.YAxis.AutoInterval = True Then
+                Chart1.ChartAreas(0).AxisY.Interval = 0
+            Else
+                Chart1.ChartAreas(0).AxisY.Interval = PointChart.YAxis.Interval
+            End If
+
+            If PointChart.YAxis.AutoMajorGridInterval = True Then
+                Chart1.ChartAreas(0).AxisY.MajorGrid.Interval = 0
+                'Message.Add("Y Axis major grid interval is automatic." & vbCrLf)
+            Else
+                Chart1.ChartAreas(0).AxisY.MajorGrid.Interval = PointChart.YAxis.MajorGridInterval
+            End If
+
+
             'Specify X Axis range: ------------------------------------------------------------------------------
             If PointChart.XAxis.AutoMinimum = True Then
                 Chart1.ChartAreas(0).AxisX.Minimum = [Double].NaN
@@ -679,6 +694,21 @@
             Else
                 Chart1.ChartAreas(0).AxisX.Maximum = PointChart.XAxis.Maximum
             End If
+
+            'Specify X Axis annotation and major grid intervals: -----------------------------------------------------
+            If PointChart.XAxis.AutoInterval = True Then
+                Chart1.ChartAreas(0).AxisX.Interval = 0
+            Else
+                Chart1.ChartAreas(0).AxisX.Interval = PointChart.XAxis.Interval
+            End If
+
+            If PointChart.XAxis.AutoMajorGridInterval = True Then
+                Chart1.ChartAreas(0).AxisX.MajorGrid.Interval = 0
+                'Message.Add("X Axis major grid interval is automatic." & vbCrLf)
+            Else
+                Chart1.ChartAreas(0).AxisX.MajorGrid.Interval = PointChart.XAxis.MajorGridInterval
+            End If
+
 
             'Specify X Axis label: ------------------------------------------------------------------------------------
             Chart1.ChartAreas(0).AxisX.TitleAlignment = PointChart.XAxis.TitleAlignment
