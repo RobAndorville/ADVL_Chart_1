@@ -31,7 +31,7 @@ Public Class AxisProperties
     End Property
 
     'The minimum value displayed along the axis.
-    Private _minimum As Single
+    Private _minimum As Single = 0
     Property Minimum As Single
         Get
             Return _minimum
@@ -54,7 +54,7 @@ Public Class AxisProperties
     End Property
 
     'The maximum value displayed along the axis.
-    Private _maximum As Single
+    Private _maximum As Single = 1
     Property Maximum As Single
         Get
             Return _maximum
@@ -631,7 +631,75 @@ Public Class PointChart
 
     End Sub
 
+    'Clear the Stock Chart settings and apply defaults.
+    Public Sub Clear()
 
+        'ChartType = DataVisualization.Charting.SeriesChartType.Point
+
+        FileName = ""
+        InputDataType = "Database"
+        InputDatabasePath = ""
+        InputQuery = ""
+        InputDataDescr = ""
+
+        SeriesName = "Series1"
+        XValuesFieldName = ""
+        YValuesFieldName = ""
+        EmptyPointValue = "Average"
+        LabelStyle = "Auto"
+        PixelPointDepth = 0
+        PixelPointGapDepth = 0
+
+        ChartLabel.Name = "Label1"
+        ChartLabel.Text = ""
+        ChartLabel.Alignment = ContentAlignment.TopCenter
+        ChartLabel.FontName = "Arial"
+        ChartLabel.Color = "Black"
+        ChartLabel.Size = 14
+        ChartLabel.Bold = True
+        ChartLabel.Italic = False
+        ChartLabel.Underline = False
+        ChartLabel.Strikeout = False
+
+        XAxis.Title.Text = ""
+        XAxis.Title.FontName = "Arial"
+        XAxis.Title.Color = "Black"
+        XAxis.Title.Size = 14
+        XAxis.Title.Bold = True
+        XAxis.Title.Italic = False
+        XAxis.Title.Underline = False
+        XAxis.Title.Strikeout = False
+        XAxis.TitleAlignment = StringAlignment.Center
+        XAxis.AutoMinimum = True
+        XAxis.Minimum = 0
+        XAxis.AutoMaximum = True
+        XAxis.Maximum = 1
+        XAxis.AutoInterval = True
+        XAxis.Interval = 0 'The Axis annotation interval. 0 = Auto.
+        XAxis.AutoMajorGridInterval = True
+        XAxis.MajorGridInterval = 0 'The major grid interval. 0 = Auto.
+
+        YAxis.Title.Text = ""
+        YAxis.Title.FontName = "Arial"
+        YAxis.Title.Color = "Black"
+        YAxis.Title.Size = 14
+        YAxis.Title.Bold = True
+        YAxis.Title.Italic = False
+        YAxis.Title.Underline = False
+        YAxis.Title.Strikeout = False
+        YAxis.TitleAlignment = StringAlignment.Center
+        YAxis.AutoMinimum = True
+        YAxis.Minimum = 0
+        YAxis.AutoMaximum = True
+        YAxis.Maximum = 1
+        YAxis.AutoInterval = True
+        YAxis.Interval = 0 'The Axis annotation interval. 0 = Auto.
+        YAxis.AutoMajorGridInterval = True
+        YAxis.MajorGridInterval = 0 'The major grid interval. 0 = Auto.
+
+        'Leave DataLocation unchanged.
+
+    End Sub
 
 
 #End Region 'Methods -----------------------------------------------------------------------------------------------------
@@ -973,6 +1041,11 @@ Public Class StockChart
         If XDoc.<ChartSettings>.<XAxis>.<Minimum>.Value <> Nothing Then XAxis.Minimum = XDoc.<ChartSettings>.<XAxis>.<Minimum>.Value
         If XDoc.<ChartSettings>.<XAxis>.<AutoMaximum>.Value <> Nothing Then XAxis.AutoMaximum = XDoc.<ChartSettings>.<XAxis>.<AutoMaximum>.Value
         If XDoc.<ChartSettings>.<XAxis>.<Maximum>.Value <> Nothing Then XAxis.Maximum = XDoc.<ChartSettings>.<XAxis>.<Maximum>.Value
+        If XDoc.<ChartSettings>.<XAxis>.<AutoInterval>.Value <> Nothing Then XAxis.AutoInterval = XDoc.<ChartSettings>.<XAxis>.<AutoInterval>.Value
+        If XDoc.<ChartSettings>.<XAxis>.<Interval>.Value <> Nothing Then XAxis.Interval = XDoc.<ChartSettings>.<XAxis>.<Interval>.Value
+        If XDoc.<ChartSettings>.<XAxis>.<AutoMajorGridInterval>.Value <> Nothing Then XAxis.AutoMajorGridInterval = XDoc.<ChartSettings>.<XAxis>.<AutoMajorGridInterval>.Value
+        If XDoc.<ChartSettings>.<XAxis>.<MajorGridInterval>.Value <> Nothing Then XAxis.MajorGridInterval = XDoc.<ChartSettings>.<XAxis>.<MajorGridInterval>.Value
+
 
         If XDoc.<ChartSettings>.<YAxis>.<TitleText>.Value <> Nothing Then YAxis.Title.Text = XDoc.<ChartSettings>.<YAxis>.<TitleText>.Value
         If XDoc.<ChartSettings>.<YAxis>.<TitleFontName>.Value <> Nothing Then YAxis.Title.FontName = XDoc.<ChartSettings>.<YAxis>.<TitleFontName>.Value
@@ -988,6 +1061,10 @@ Public Class StockChart
         If XDoc.<ChartSettings>.<YAxis>.<Minimum>.Value <> Nothing Then YAxis.Minimum = XDoc.<ChartSettings>.<YAxis>.<Minimum>.Value
         If XDoc.<ChartSettings>.<YAxis>.<AutoMaximum>.Value <> Nothing Then YAxis.AutoMaximum = XDoc.<ChartSettings>.<YAxis>.<AutoMaximum>.Value
         If XDoc.<ChartSettings>.<YAxis>.<Maximum>.Value <> Nothing Then YAxis.Maximum = XDoc.<ChartSettings>.<YAxis>.<Maximum>.Value
+        If XDoc.<ChartSettings>.<YAxis>.<AutoInterval>.Value <> Nothing Then YAxis.AutoInterval = XDoc.<ChartSettings>.<YAxis>.<AutoInterval>.Value
+        If XDoc.<ChartSettings>.<YAxis>.<Interval>.Value <> Nothing Then YAxis.Interval = XDoc.<ChartSettings>.<YAxis>.<Interval>.Value
+        If XDoc.<ChartSettings>.<YAxis>.<AutoMajorGridInterval>.Value <> Nothing Then YAxis.AutoMajorGridInterval = XDoc.<ChartSettings>.<YAxis>.<AutoMajorGridInterval>.Value
+        If XDoc.<ChartSettings>.<YAxis>.<MajorGridInterval>.Value <> Nothing Then YAxis.MajorGridInterval = XDoc.<ChartSettings>.<YAxis>.<MajorGridInterval>.Value
 
     End Sub
 
@@ -1046,6 +1123,10 @@ Public Class StockChart
                            <Minimum><%= XAxis.Minimum %></Minimum>
                            <AutoMaximum><%= XAxis.AutoMaximum %></AutoMaximum>
                            <Maximum><%= XAxis.Maximum %></Maximum>
+                           <AutoInterval><%= XAxis.AutoInterval %></AutoInterval>
+                           <Interval><%= XAxis.Interval %></Interval>
+                           <AutoMajorGridInterval><%= XAxis.AutoMajorGridInterval %></AutoMajorGridInterval>
+                           <MajorGridInterval><%= XAxis.MajorGridInterval %></MajorGridInterval>
                        </XAxis>
                        <YAxis>
                            <TitleText><%= YAxis.Title.Text %></TitleText>
@@ -1061,6 +1142,10 @@ Public Class StockChart
                            <Minimum><%= YAxis.Minimum %></Minimum>
                            <AutoMaximum><%= YAxis.AutoMaximum %></AutoMaximum>
                            <Maximum><%= YAxis.Maximum %></Maximum>
+                           <AutoInterval><%= YAxis.AutoInterval %></AutoInterval>
+                           <Interval><%= YAxis.Interval %></Interval>
+                           <AutoMajorGridInterval><%= YAxis.AutoMajorGridInterval %></AutoMajorGridInterval>
+                           <MajorGridInterval><%= YAxis.MajorGridInterval %></MajorGridInterval>
                        </YAxis>
                    </ChartSettings>
 
@@ -1075,6 +1160,85 @@ Public Class StockChart
         End If
 
         DataLocation.SaveXmlData(myFileName, ToXDoc)
+
+    End Sub
+
+    'Clear the Stock Chart settings and apply defaults.
+    Public Sub Clear()
+
+        ChartType = DataVisualization.Charting.SeriesChartType.Stock
+
+        FileName = ""
+        InputDataType = "Database"
+        InputDatabasePath = ""
+        InputQuery = ""
+        InputDataDescr = ""
+
+        SeriesName = "Series1"
+        XValuesFieldName = ""
+        YValuesHighFieldName = ""
+        YValuesLowFieldName = ""
+        YValuesOpenFieldName = ""
+        YValuesCloseFieldName = ""
+        LabelValueType = "Close"
+        MaxPixelPointWidth = 1
+        MinPixelPointWidth = 1
+        OpenCloseStyle = "Line"
+        PixelPointDepth = 1
+        PixelPointGapDepth = 1
+        PixelPointWidth = 1
+        PointWidth = 0.8
+        ShowOpenClose = "Both"
+
+        ChartLabel.Name = "Label1"
+        ChartLabel.Text = ""
+        ChartLabel.Alignment = ContentAlignment.TopCenter
+        ChartLabel.FontName = "Arial"
+        ChartLabel.Color = "Black"
+        ChartLabel.Size = 14
+        ChartLabel.Bold = True
+        ChartLabel.Italic = False
+        ChartLabel.Underline = False
+        ChartLabel.Strikeout = False
+
+        XAxis.Title.Text = ""
+        XAxis.Title.FontName = "Arial"
+        XAxis.Title.Color = "Black"
+        XAxis.Title.Size = 14
+        XAxis.Title.Bold = True
+        XAxis.Title.Italic = False
+        XAxis.Title.Underline = False
+        XAxis.Title.Strikeout = False
+        XAxis.TitleAlignment = StringAlignment.Center
+        XAxis.AutoMinimum = True
+        XAxis.Minimum = 0
+        XAxis.AutoMaximum = True
+        XAxis.Maximum = 1
+        XAxis.AutoInterval = True
+        XAxis.Interval = 0 'The Axis annotation interval. 0 = Auto.
+        XAxis.AutoMajorGridInterval = True
+        XAxis.MajorGridInterval = 0 'The major grid interval. 0 = Auto.
+
+        YAxis.Title.Text = ""
+        YAxis.Title.FontName = "Arial"
+        YAxis.Title.Color = "Black"
+        YAxis.Title.Size = 14
+        YAxis.Title.Bold = True
+        YAxis.Title.Italic = False
+        YAxis.Title.Underline = False
+        YAxis.Title.Strikeout = False
+        YAxis.TitleAlignment = StringAlignment.Center
+        YAxis.AutoMinimum = True
+        YAxis.Minimum = 0
+        YAxis.AutoMaximum = True
+        YAxis.Maximum = 1
+        YAxis.AutoInterval = True
+        YAxis.Interval = 0 'The Axis annotation interval. 0 = Auto.
+        YAxis.AutoMajorGridInterval = True
+        YAxis.MajorGridInterval = 0 'The major grid interval. 0 = Auto.
+
+        'Leave DataLocation unchanged.
+
 
     End Sub
 

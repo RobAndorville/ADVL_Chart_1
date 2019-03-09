@@ -16,6 +16,9 @@
 '
 '----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 Imports System.Windows.Forms.DataVisualization 'Add reference Assemblies, Framework, System.Windows.Forms.DataVisualization
+Imports System.Security.Permissions
+<PermissionSet(SecurityAction.Demand, Name:="FullTrust")>
+<System.Runtime.InteropServices.ComVisibleAttribute(True)>
 Public Class Main
     'The ADVL_Chart produces a variety of charts from a range of input data sources.
 
@@ -78,17 +81,36 @@ Public Class Main
     Public WithEvents Chart As frmChart 'Form to display a new chart
     Public ChartList As New ArrayList 'Used for displaying multiple Chart forms.
 
+    Public WithEvents WebPageList As frmWebPageList
+
+    Public WithEvents NewHtmlDisplay As frmHtmlDisplay
+    Public HtmlDisplayFormList As New ArrayList 'Used for displaying multiple HtmlDisplay forms.
+
+    Public WithEvents NewWebPage As frmWebPage
+    Public WebPageFormList As New ArrayList 'Used for displaying multiple WebView forms.
+
+
     'Declare objects used to connect to the Application Network:
     Public client As ServiceReference1.MsgServiceClient
     Public WithEvents XMsg As New ADVL_Utilities_Library_1.XMessage
     Dim XDoc As New System.Xml.XmlDocument
     Public Status As New System.Collections.Specialized.StringCollection
+    Dim ClientAppNetName As String = "" 'The name of thge client Application Network requesting service. ADDED 2Feb19.
     Dim ClientAppName As String = "" 'The name of the client requesting service
-    Dim ClientAppLocn As String = "" 'The location in the Client application requesting service
+    Dim ClientConnName As String = "" 'The name of the client connection requesting service
+    'Dim ClientAppLocn As String = "" 'The location in the Client application requesting service
     Dim MessageXDoc As System.Xml.Linq.XDocument
     Dim xmessage As XElement 'This will contain the message. It will be added to MessageXDoc.
     Dim xlocns As New List(Of XElement) 'A list of locations. Each location forms part of the reply message. The information in the reply message will be sent to the specified location in the client application.
     Dim MessageText As String = "" 'The text of a message sent through the Application Network.
+
+    'Dim ConnectionName As String = "" 'The name of the connection used to connect this application to the ComNet.
+    Public ConnectionName As String = "" 'The name of the connection used to connect this application to the ComNet.
+    Public AppNetName As String = "" 'Added 2Feb19
+
+    Public MsgServiceAppPath As String = "" 'The application path of the Message Service application (ComNet). This is where the "Application.Lock" file will be while ComNet is running
+    Public MsgServiceExePath As String = "" 'The executable path of the Message Service.
+
 
     'Dataset used to hold points for plotting:
     Public ds As New DataSet
@@ -104,9 +126,47 @@ Public Class Main
     'Public PointChart As clsPointChartProperties = New clsPointChartProperties 'Point Chart properties
     Public PointChart As New PointChart
 
+    'New Chart variables:
+    'A New Chart is created by instructions passed through the Application Network.
+    Public NewStockChart As StockChart
+    Public NewPointChart As PointChart
+    Public NewInputDataType As String = "Database" 'Database or Dataset
+    Public NewInputDatabasePath As String = ""     'The path to the database containing the input data for the New Chart.
+    Public NewInputQuery As String = ""            'The SQL query used to extract the data used in the New Chart.
+    Public NewChartType As DataVisualization.Charting.SeriesChartType 'The chart type of the New Chart
+
     Public LastUsedCharts As New Dictionary(Of String, String) 'Stores the last used chart file name for each chart type. eg. dictLastUsedCharts("StockChart") returns "ANZ Prices.StockChart"
 
     Dim WithEvents Zip As ADVL_Utilities_Library_1.ZipComp
+
+    'Main.Load variables:
+    Dim ProjectSelected As Boolean = False 'If True, a project has been selected using Command Arguments. Used in Main.Load.
+    Dim StartupConnectionName As String = "" 'If not "" the application will be connected to the AppNet using this connection name in  Main.Load.
+
+
+    'The following variables are used to run JavaScript in Web Pages loaded into the Document View: -------------------
+    Public WithEvents XSeq As New ADVL_Utilities_Library_1.XSequence
+    'To run an XSequence:
+    '  XSeq.RunXSequence(xDoc, Status) 'ImportStatus in Import
+    '    Handle events:
+    '      XSeq.ErrorMsg
+    '      XSeq.Instruction(Info, Locn)
+
+    Private XStatus As New System.Collections.Specialized.StringCollection
+
+    'Variables used to restore Item values on a web page.
+    Private FormName As String
+    Private ItemName As String
+    Private SelectId As String
+
+    'StartProject variables:
+    Private StartProject_AppName As String  'The application name
+    Private StartProject_ConnName As String 'The connection name
+    Private StartProject_ProjID As String   'The project ID
+
+
+
+
 
 #End Region 'Variable Declarations ------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -123,15 +183,84 @@ Public Class Main
     End Property
 
 
-    Private _connectedToAppNet As Boolean = False  'True if the application is connected to the Application Network.
-    Property ConnectedToAppnet As Boolean
+    'Private _connectedToAppNet As Boolean = False  'True if the application is connected to the Application Network.
+    Private _connectedToComNet As Boolean = False  'True if the application is connected to the Communication Network (Message Service).
+    'Property ConnectedToAppnet As Boolean
+    Property ConnectedToComNet As Boolean
         Get
-            Return _connectedToAppNet
+            Return _connectedToComNet
         End Get
         Set(value As Boolean)
-            _connectedToAppNet = value
+            _connectedToComNet = value
         End Set
     End Property
+
+    'Private _instrReceived As String = "" 'Contains Instructions received from the Application Network message service.
+    'Property InstrReceived As String
+    '    Get
+    '        Return _instrReceived
+    '    End Get
+    '    Set(value As String)
+    '        If value = Nothing Then
+    '            Message.Add("Empty message received!")
+    '        Else
+    '            _instrReceived = value
+
+    '            'Add the message to the XMessages window:
+    '            Message.XAddText("Message received: " & vbCrLf, "XmlReceivedNotice")
+    '            If _instrReceived.StartsWith("<XMsg>") Then 'This is an XMessage set of instructions.
+    '                Try
+    '                    'Inititalise the reply message:
+    '                    Dim Decl As New XDeclaration("1.0", "utf-8", "yes")
+    '                    MessageXDoc = New XDocument(Decl, Nothing) 'Reply message - this will be sent to the Client App.
+    '                    xmessage = New XElement("XMsg")
+    '                    xlocns.Add(New XElement("Main")) 'Initially set the location in the Client App to Main.
+
+    '                    'Run the received message:
+    '                    Dim XmlHeader As String = "<?xml version=""1.0"" encoding=""utf-8"" standalone=""yes""?>"
+    '                    XDoc.LoadXml(XmlHeader & vbCrLf & _instrReceived)
+
+
+    '                    Message.XAddXml(XDoc)
+    '                    'Message.XAddText(vbCrLf, "Message") 'Add extra line
+    '                    Message.XAddText(vbCrLf, "Normal") 'Add extra line
+
+    '                    XMsg.Run(XDoc, Status)
+    '                Catch ex As Exception
+    '                    Message.Add("Error running XMsg: " & ex.Message & vbCrLf)
+    '                End Try
+
+    '                'XMessage has been run.
+    '                'Reply to this message:
+    '                'Add the message reply to the XMessages window:
+    '                'Complete the MessageXDoc:
+    '                xmessage.Add(xlocns(xlocns.Count - 1)) 'Add the last location reply instructions to the message.
+    '                MessageXDoc.Add(xmessage)
+    '                MessageText = MessageXDoc.ToString
+
+    '                If ClientAppName = "" Then
+    '                    'No client to send a message to!
+    '                Else
+    '                    'Message.Color = Color.Red
+    '                    'Message.FontStyle = FontStyle.Bold
+    '                    'Message.XAdd("Message sent to " & ClientAppName & ":" & vbCrLf)
+    '                    'Message.SetNormalStyle()
+    '                    'Message.XAdd(MessageText & vbCrLf & vbCrLf)
+    '                    Message.XAddText("Message sent to " & ClientAppName & ":" & vbCrLf, "XmlSentNotice")
+    '                    'Message.XAddText(MessageText & vbCrLf & vbCrLf, "Message")
+    '                    Message.XAddXml(MessageText)
+    '                    'Message.XAddText(vbCrLf, "Message") 'Add extra line
+    '                    Message.XAddText(vbCrLf, "Normal") 'Add extra line
+    '                    'SendMessage sends the contents of MessageText to MessageDest.
+    '                    SendMessage() 'This subroutine triggers the timer to send the message after a short delay.
+    '                End If
+    '            Else
+
+    '            End If
+    '        End If
+
+    '    End Set
+    'End Property
 
     Private _instrReceived As String = "" 'Contains Instructions received from the Application Network message service.
     Property InstrReceived As String
@@ -143,56 +272,54 @@ Public Class Main
                 Message.Add("Empty message received!")
             Else
                 _instrReceived = value
-
-                'Add the message to the XMessages window:
-                Message.Color = Color.Blue
-                Message.FontStyle = FontStyle.Bold
-                Message.XAdd("Message received: " & vbCrLf)
-                Message.SetNormalStyle()
-                Message.XAdd(_instrReceived & vbCrLf & vbCrLf)
-
-                If _instrReceived.StartsWith("<XMsg>") Then 'This is an XMessage set of instructions.
-                    Try
-                        'Inititalise the reply message:
-                        Dim Decl As New XDeclaration("1.0", "utf-8", "yes")
-                        MessageXDoc = New XDocument(Decl, Nothing) 'Reply message - this will be sent to the Client App.
-                        xmessage = New XElement("XMsg")
-                        xlocns.Add(New XElement("Main")) 'Initially set the location in the Client App to Main.
-
-                        'Run the received message:
-                        Dim XmlHeader As String = "<?xml version=""1.0"" encoding=""utf-8"" standalone=""yes""?>"
-                        XDoc.LoadXml(XmlHeader & vbCrLf & _instrReceived)
-                        XMsg.Run(XDoc, Status)
-                    Catch ex As Exception
-                        Message.Add("Error running XMsg: " & ex.Message & vbCrLf)
-                    End Try
-
-                    'XMessage has been run.
-                    'Reply to this message:
-                    'Add the message reply to the XMessages window:
-                    'Complete the MessageXDoc:
-                    xmessage.Add(xlocns(xlocns.Count - 1)) 'Add the last location reply instructions to the message.
-                    MessageXDoc.Add(xmessage)
-                    MessageText = MessageXDoc.ToString
-
-                    If ClientAppName = "" Then
-                        'No client to send a message to!
-                    Else
-                        Message.Color = Color.Red
-                        Message.FontStyle = FontStyle.Bold
-                        Message.XAdd("Message sent to " & ClientAppName & ":" & vbCrLf)
-                        Message.SetNormalStyle()
-                        Message.XAdd(MessageText & vbCrLf & vbCrLf)
-                        'SendMessage sends the contents of MessageText to MessageDest.
-                        SendMessage() 'This subroutine triggers the timer to send the message after a short delay.
-                    End If
-                Else
-
-                End If
+                ProcessInstructions(_instrReceived)
             End If
-
         End Set
     End Property
+
+    Private Sub ProcessInstructions(ByVal Instructions As String)
+        'Process the XMessage instructions.
+
+        'Add the message header to the XMessages window:
+        Message.XAddText("Message received: " & vbCrLf, "XmlReceivedNotice")
+        If Instructions.StartsWith("<XMsg>") Then 'This is an XMessage set of instructions.
+            Try
+                'Inititalise the reply message:
+                Dim Decl As New XDeclaration("1.0", "utf-8", "yes")
+                MessageXDoc = New XDocument(Decl, Nothing) 'Reply message - this will be sent to the Client App.
+                xmessage = New XElement("XMsg")
+                xlocns.Add(New XElement("Main")) 'Initially set the location in the Client App to Main.
+
+                'Run the received message:
+                Dim XmlHeader As String = "<?xml version=""1.0"" encoding=""utf-8"" standalone=""yes""?>"
+                XDoc.LoadXml(XmlHeader & vbCrLf & Instructions.Replace("&", "&amp;")) 'Replace "&" with "&amp:" before loading the XML text.
+                Message.XAddXml(XDoc)  'Add the message to the XMessages window.
+                Message.XAddText(vbCrLf, "Normal") 'Add extra line
+                XMsg.Run(XDoc, Status)
+            Catch ex As Exception
+                Message.Add("Error running XMsg: " & ex.Message & vbCrLf)
+            End Try
+
+            'XMessage has been run.
+            'Reply to this message:
+            'Add the message reply to the XMessages window:
+            'Complete the MessageXDoc:
+            xmessage.Add(xlocns(xlocns.Count - 1)) 'Add the last location reply instructions to the message.
+            MessageXDoc.Add(xmessage)
+            MessageText = MessageXDoc.ToString
+
+            If ClientConnName = "" Then
+                'No client to send a message to!
+            Else
+                Message.XAddText("Message sent to " & ClientConnName & ":" & vbCrLf, "XmlSentNotice")
+                Message.XAddXml(MessageText)
+                Message.XAddText(vbCrLf, "Normal") 'Add extra line
+                SendMessage() 'This subroutine triggers the timer to send the message after a short delay.
+            End If
+        Else 'This is not an XMessage!
+            Message.XAddText("The message is not an XMessage: " & Instructions & vbCrLf, "Normal")
+        End If
+    End Sub
 
     Private _closedFormNo As Integer 'Temporarily holds the number of the form that is being closed. 
     Property ClosedFormNo As Integer
@@ -235,6 +362,7 @@ Public Class Main
         Set(value As String)
             _inputDatabasePath = value
             txtDatabasePath.Text = _inputDatabasePath
+            FillLstTables()
         End Set
     End Property
 
@@ -273,6 +401,7 @@ Public Class Main
         Set(value As DataVisualization.Charting.SeriesChartType)
             _chartType = value
             txtChartType.Text = _chartType.ToString
+            cmbChartType.SelectedIndex = cmbChartType.FindStringExact(_chartType.ToString)
         End Set
     End Property
 
@@ -291,6 +420,16 @@ Public Class Main
         End Set
     End Property
 
+    Private _startPageFileName As String = "" 'The file name of the html document displayed in the Start Page tab.
+    Public Property StartPageFileName As String
+        Get
+            Return _startPageFileName
+        End Get
+        Set(value As String)
+            _startPageFileName = value
+        End Set
+    End Property
+
 #End Region 'Properties -----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 #Region " Process XML Files - Read and write XML files." '-------------------------------------------------------------------------------------------------------------------------------------
@@ -305,8 +444,10 @@ Public Class Main
                                <Top><%= Me.Top %></Top>
                                <Width><%= Me.Width %></Width>
                                <Height><%= Me.Height %></Height>
-                               <SelectedTabIndex><%= TabControl1.SelectedIndex %></SelectedTabIndex>
+                               <MsgServiceAppPath><%= MsgServiceAppPath %></MsgServiceAppPath>
+                               <MsgServiceExePath><%= MsgServiceExePath %></MsgServiceExePath>
                                <!---->
+                               <SelectedTabIndex><%= TabControl1.SelectedIndex %></SelectedTabIndex>
                                <InputDataType><%= InputDataType %></InputDataType>
                                <InputDatabasePath><%= InputDatabasePath %></InputDatabasePath>
                                <InputDatabaseDirectory><%= InputDatabaseDirectory %></InputDatabaseDirectory>
@@ -314,6 +455,7 @@ Public Class Main
                                <InputQuery><%= InputQuery %></InputQuery>
                                <ChartType><%= ChartType.ToString %></ChartType>
                                <ChartWindow><%= ChartWindow %></ChartWindow>
+                               <AutoDraw><%= chkAutoDraw.Checked %></AutoDraw>
                            </FormSettings>
 
         'Add code to include other settings to save after the comment line <!---->
@@ -340,9 +482,15 @@ Public Class Main
             If Settings.<FormSettings>.<Top>.Value <> Nothing Then Me.Top = Settings.<FormSettings>.<Top>.Value
             If Settings.<FormSettings>.<Height>.Value <> Nothing Then Me.Height = Settings.<FormSettings>.<Height>.Value
             If Settings.<FormSettings>.<Width>.Value <> Nothing Then Me.Width = Settings.<FormSettings>.<Width>.Value
-            If Settings.<FormSettings>.<SelectedTabIndex>.Value <> Nothing Then TabControl1.SelectedIndex = Settings.<FormSettings>.<SelectedTabIndex>.Value
+
+            If Settings.<FormSettings>.<MsgServiceAppPath>.Value <> Nothing Then MsgServiceAppPath = Settings.<FormSettings>.<MsgServiceAppPath>.Value
+            If Settings.<FormSettings>.<MsgServiceExePath>.Value <> Nothing Then MsgServiceExePath = Settings.<FormSettings>.<MsgServiceExePath>.Value
+
+
 
             'Add code to read other saved setting here:
+            If Settings.<FormSettings>.<SelectedTabIndex>.Value <> Nothing Then TabControl1.SelectedIndex = Settings.<FormSettings>.<SelectedTabIndex>.Value
+
             If Settings.<FormSettings>.<InputDataType>.Value <> Nothing Then
                 InputDataType = Settings.<FormSettings>.<InputDataType>.Value
                 If InputDataType = "Database" Then
@@ -368,6 +516,7 @@ Public Class Main
                 ChartType = [Enum].Parse(GetType(DataVisualization.Charting.SeriesChartType), Settings.<FormSettings>.<ChartType>.Value)
             End If
             If Settings.<FormSettings>.<ChartWindow>.Value <> Nothing Then ChartWindow = Settings.<FormSettings>.<ChartWindow>.Value
+            If Settings.<FormSettings>.<AutoDraw>.Value <> Nothing Then chkAutoDraw.Checked = Settings.<FormSettings>.<AutoDraw>.Value
         End If
     End Sub
 
@@ -692,12 +841,13 @@ Public Class Main
 
 #Region " Form Display Methods - Code used to display this form." '----------------------------------------------------------------------------------------------------------------------------
 
-    Private Sub Main_Load(sender As Object, e As EventArgs) Handles Me.Load
+    Private Sub Main_Load(sender As Object, e As EventArgs) Handles MyBase.Load
+        'Loading the Main form.
 
-        'Write the startup messages in a stringbuilder object.
-        'Messages cannot be written using Message.Add until this is set up later in the startup sequence.
-        Dim sb As New System.Text.StringBuilder
-        sb.Append("------------------- Starting Application: ADVL Chart Application ---------------------------------------------------------------- " & vbCrLf)
+        ''Write the startup messages in a stringbuilder object.
+        ''Messages cannot be written using Message.Add until this is set up later in the startup sequence.
+        'Dim sb As New System.Text.StringBuilder
+        'sb.Append("------------------- Starting Application: ADVL Chart Application ---------------------------------------------------------------- " & vbCrLf)
 
         'Set the Application Directory path: ------------------------------------------------
         Project.ApplicationDir = My.Application.Info.DirectoryPath.ToString
@@ -718,63 +868,164 @@ Public Class Main
         End If
 
         ReadApplicationInfo()
-        ApplicationInfo.LockApplication()
+        'ApplicationInfo.LockApplication()
 
         'Read the Application Usage information: --------------------------------------------
         ApplicationUsage.StartTime = Now
         ApplicationUsage.SaveLocn.Type = ADVL_Utilities_Library_1.FileLocation.Types.Directory
         ApplicationUsage.SaveLocn.Path = Project.ApplicationDir
         ApplicationUsage.RestoreUsageInfo()
-        sb.Append("Application usage: Total duration = " & Format(ApplicationUsage.TotalDuration.TotalHours, "#0.##") & " hours" & vbCrLf)
+        'sb.Append("Application usage: Total duration = " & Format(ApplicationUsage.TotalDuration.TotalHours, "#0.##") & " hours" & vbCrLf)
 
         'Restore Project information: -------------------------------------------------------
         Project.ApplicationName = ApplicationInfo.Name
-        Project.ReadLastProjectInfo()
-        Project.ReadProjectInfoFile()
-        Project.Usage.StartTime = Now
+        'Project.ReadLastProjectInfo()
+        'Project.ReadProjectInfoFile()
+        'Project.Usage.StartTime = Now
 
         'Project.ReadProjectInfoFile()
 
-        ApplicationInfo.SettingsLocn = Project.SettingsLocn
-
-        'Set up the Message object:
+        'Set up Message object:
         Message.ApplicationName = ApplicationInfo.Name
-        Message.SettingsLocn = Project.SettingsLocn
+
+        'Set up a temporary initial settings location:
+        Dim TempLocn As New ADVL_Utilities_Library_1.FileLocation
+        TempLocn.Type = ADVL_Utilities_Library_1.FileLocation.Types.Directory
+        TempLocn.Path = ApplicationInfo.ApplicationDir
+        Message.SettingsLocn = TempLocn
+
+        Me.Show() 'Show this form before showing the Message form - This will show the App icon on top in the TaskBar.
+
+        'Start showing messages here - Message system is set up.
+        Message.AddText("------------------- Starting Application: ADVL Application Template ----------------- " & vbCrLf, "Heading")
+        Message.AddText("Application usage: Total duration = " & Format(ApplicationUsage.TotalDuration.TotalHours, "#.##") & " hours" & vbCrLf, "Normal")
 
 
-        RestoreFormSettings() 'Restore the form settings
-        RestoreProjectSettings() 'Restore the Project settings
+
+        'https://msdn.microsoft.com/en-us/library/z2d603cy(v=vs.80).aspx#Y550
+        'Process any command line arguments:
+        Try
+            For Each s As String In My.Application.CommandLineArgs
+                Message.Add("Command line argument: " & vbCrLf)
+                Message.AddXml(s & vbCrLf & vbCrLf)
+                InstrReceived = s
+            Next
+        Catch ex As Exception
+            Message.AddWarning("Error processing command line arguments: " & ex.Message & vbCrLf)
+        End Try
+
+        If ProjectSelected = False Then
+            'Read the Settings Location for the last project used:
+            Project.ReadLastProjectInfo()
+            'The Last_Project_Info.xml file contains:
+            '  Project Name and Description. Settings Location Type and Settings Location Path.
+            Message.Add("Last project info has been read." & vbCrLf)
+            'Message.Add("Project.SettingsLocn.Type  " & Project.SettingsLocn.Type.ToString & vbCrLf)
+            Message.Add("Project.Type.ToString  " & Project.Type.ToString & vbCrLf)
+            'Message.Add("Project.SettingsLocn.Path  " & Project.SettingsLocn.Path & vbCrLf)
+            Message.Add("Project.Path  " & Project.Path & vbCrLf)
 
 
-        'Show the project information: ------------------------------------------------------
-        txtProjectName.Text = Project.Name
-        txtProjectDescription.Text = Project.Description
-        Select Case Project.Type
-            Case ADVL_Utilities_Library_1.Project.Types.Directory
-                txtProjectType.Text = "Directory"
-            Case ADVL_Utilities_Library_1.Project.Types.Archive
-                txtProjectType.Text = "Archive"
-            Case ADVL_Utilities_Library_1.Project.Types.Hybrid
-                txtProjectType.Text = "Hybrid"
-            Case ADVL_Utilities_Library_1.Project.Types.None
-                txtProjectType.Text = "None"
-        End Select
-        txtCreationDate.Text = Format(Project.Usage.FirstUsed, "d-MMM-yyyy H:mm:ss")
-        txtLastUsed.Text = Format(Project.Usage.LastUsed, "d-MMM-yyyy H:mm:ss")
-        Select Case Project.SettingsLocn.Type
-            Case ADVL_Utilities_Library_1.FileLocation.Types.Directory
-                txtSettingsLocationType.Text = "Directory"
-            Case ADVL_Utilities_Library_1.FileLocation.Types.Archive
-                txtSettingsLocationType.Text = "Archive"
-        End Select
-        txtSettingsLocationPath.Text = Project.SettingsLocn.Path
-        Select Case Project.DataLocn.Type
-            Case ADVL_Utilities_Library_1.FileLocation.Types.Directory
-                txtDataLocationType.Text = "Directory"
-            Case ADVL_Utilities_Library_1.FileLocation.Types.Archive
-                txtDataLocationType.Text = "Archive"
-        End Select
-        txtDataLocationPath.Text = Project.DataLocn.Path
+            'At this point read the application start arguments, if any.
+            'The selected project may be changed here.
+
+            'Check if the project is locked:
+            If Project.ProjectLocked Then
+                Message.AddWarning("The project is locked: " & Project.Name & vbCrLf)
+                Dim dr As System.Windows.Forms.DialogResult
+                dr = MessageBox.Show("Press 'Yes' to unlock the project", "Notice", MessageBoxButtons.YesNo)
+                If dr = System.Windows.Forms.DialogResult.Yes Then
+                    'ApplicationInfo.UnlockApplication()
+                    Project.UnlockProject()
+                    Message.AddWarning("The project has been unlocked: " & Project.Name & vbCrLf)
+                    'Read the Project Information file: -------------------------------------------------
+                    Message.Add("Reading project info." & vbCrLf)
+                    Project.ReadProjectInfoFile()                 'Read the file in the SettingsLocation: ADVL_Project_Info.xml
+
+                    'ADDED 2Feb19:
+                    Project.ReadParameters()
+                    Project.ReadParentParameters()
+                    If Project.ParentParameterExists("AppNetName") Then
+                        'Project.Parameter("AppNetName") = Project.ParentParameter("AppNetName")
+                        Project.AddParameter("AppNetName", Project.ParentParameter("AppNetName").Value, Project.ParentParameter("AppNetName").Description) 'AddParameter will update the parameter if it already exists.
+                        AppNetName = Project.Parameter("AppNetName").Value
+                    Else
+                        'AppNetName = ""
+                        AppNetName = Project.GetParameter("AppNetName")
+                    End If
+
+                    Project.LockProject() 'Lock the project while it is open in this application.
+                    'Set the project start time. This is used to track project usage.
+                    Project.Usage.StartTime = Now
+                    ApplicationInfo.SettingsLocn = Project.SettingsLocn
+                    'Set up the Message object:
+                    'Message.ApplicationName = ApplicationInfo.Name
+                    Message.SettingsLocn = Project.SettingsLocn
+                Else
+                    'Application.Exit()
+                    'Continue without any project selected.
+                    Project.Name = ""
+                    Project.Type = ADVL_Utilities_Library_1.Project.Types.None
+                    Project.Description = ""
+                    Project.SettingsLocn.Path = ""
+                    Project.DataLocn.Path = ""
+                End If
+
+            Else
+                'Read the Project Information file: -------------------------------------------------
+                Message.Add("Reading project info." & vbCrLf)
+                Project.ReadProjectInfoFile()                 'Read the file in the SettingsLocation: ADVL_Project_Info.xml
+
+                'ADDED 2Feb19:
+                Project.ReadParameters()
+                Project.ReadParentParameters()
+                If Project.ParentParameterExists("AppNetName") Then
+                    'Project.Parameter("AppNetName") = Project.ParentParameter("AppNetName")
+                    Project.AddParameter("AppNetName", Project.ParentParameter("AppNetName").Value, Project.ParentParameter("AppNetName").Description) 'AddParameter will update the parameter if it already exists.
+                    AppNetName = Project.Parameter("AppNetName").Value
+                Else
+                    'AppNetName = ""
+                    AppNetName = Project.GetParameter("AppNetName")
+                End If
+
+                Project.LockProject() 'Lock the project while it is open in this application.
+                'Set the project start time. This is used to track project usage.
+                Project.Usage.StartTime = Now
+                ApplicationInfo.SettingsLocn = Project.SettingsLocn
+                'Set up the Message object:
+                'Message.ApplicationName = ApplicationInfo.Name
+                Message.SettingsLocn = Project.SettingsLocn
+            End If
+
+        Else 'Project has been opened using Command Line arguments.
+            'ADDED 2Feb19:
+            Project.ReadParameters()
+            Project.ReadParentParameters()
+            If Project.ParentParameterExists("AppNetName") Then
+                'Project.Parameter("AppNetName") = Project.ParentParameter("AppNetName")
+                Project.AddParameter("AppNetName", Project.ParentParameter("AppNetName").Value, Project.ParentParameter("AppNetName").Description) 'AddParameter will update the parameter if it already exists.
+                AppNetName = Project.Parameter("AppNetName").Value
+            Else
+                'AppNetName = ""
+                AppNetName = Project.GetParameter("AppNetName")
+            End If
+
+            Project.LockProject() 'Lock the project while it is open in this application.
+
+            ProjectSelected = False 'Reset the Project Selected flag.
+        End If
+
+
+        'ApplicationInfo.SettingsLocn = Project.SettingsLocn
+
+        ''Set up the Message object:
+        'Message.ApplicationName = ApplicationInfo.Name
+        'Message.SettingsLocn = Project.SettingsLocn
+
+
+        'START Initialise the form: ===============================================================
+
+        Me.WebBrowser1.ObjectForScripting = Me
 
         'Initialise Input Data Tab ----------------------------------------------------------
         cmbDatabaseType.Items.Add("Access2007To2013")
@@ -879,15 +1130,156 @@ Public Class Main
         'UpdateCurrentSettings() 'This gets the chart settings from StockChart, ChartLabel, XAxis and YAxis
         UpdateChartForm() 'Update the chart settings on the form.
 
+        'OpenLastUsedChart()
+
+
+        InitialiseForm() 'Initialise the form for a new project.
+
+        'END   Initialise the form: ---------------------------------------------------------------
+
+
+        RestoreFormSettings() 'Restore the form settings
+        RestoreProjectSettings() 'Restore the Project settings
+
         OpenLastUsedChart()
 
+        ShowProjectInfo() 'Show the project information.
 
-        sb.Append("------------------- Started OK ------------------------------------------------------------------------------------------------------------------------ " & vbCrLf & vbCrLf)
-        Me.Show() 'Show this form before showing the Message form
-        Message.Add(sb.ToString)
+        'Show the project information: ------------------------------------------------------
+        'txtProjectName.Text = Project.Name
+        'txtProjectDescription.Text = Project.Description
+        'Select Case Project.Type
+        '    Case ADVL_Utilities_Library_1.Project.Types.Directory
+        '        txtProjectType.Text = "Directory"
+        '    Case ADVL_Utilities_Library_1.Project.Types.Archive
+        '        txtProjectType.Text = "Archive"
+        '    Case ADVL_Utilities_Library_1.Project.Types.Hybrid
+        '        txtProjectType.Text = "Hybrid"
+        '    Case ADVL_Utilities_Library_1.Project.Types.None
+        '        txtProjectType.Text = "None"
+        'End Select
+        'txtCreationDate.Text = Format(Project.Usage.FirstUsed, "d-MMM-yyyy H:mm:ss")
+        'txtLastUsed.Text = Format(Project.Usage.LastUsed, "d-MMM-yyyy H:mm:ss")
+        'Select Case Project.SettingsLocn.Type
+        '    Case ADVL_Utilities_Library_1.FileLocation.Types.Directory
+        '        txtSettingsLocationType.Text = "Directory"
+        '    Case ADVL_Utilities_Library_1.FileLocation.Types.Archive
+        '        txtSettingsLocationType.Text = "Archive"
+        'End Select
+        'txtSettingsLocationPath.Text = Project.SettingsLocn.Path
+        'Select Case Project.DataLocn.Type
+        '    Case ADVL_Utilities_Library_1.FileLocation.Types.Directory
+        '        txtDataLocationType.Text = "Directory"
+        '    Case ADVL_Utilities_Library_1.FileLocation.Types.Archive
+        '        txtDataLocationType.Text = "Archive"
+        'End Select
+        'txtDataLocationPath.Text = Project.DataLocn.Path
+        'txtTotalDuration.Text = Format(Project.Usage.TotalDuration.TotalHours, "#.##")
+        ''txtCurrentDuration.Text = Format(Project.Usage.CurrentDuration.TotalHours, "#.###")
+        'txtCurrentDuration.Text = Format(Project.Usage.CurrentDuration.TotalHours, "0.000")
+
+
+        'sb.Append("------------------- Started OK ------------------------------------------------------------------------------------------------------------------------ " & vbCrLf & vbCrLf)
+        Message.AddText("------------------- Started OK -------------------------------------------------------------------------- " & vbCrLf & vbCrLf, "Heading")
+
+        'Me.Show() 'Show this form before showing the Message form
+        'Message.Add(sb.ToString)
+
+        If StartupConnectionName = "" Then
+            'Dont connect to the AppNet
+
+            'UPDATE 20Feb18:
+            If Project.ConnectOnOpen Then
+                ConnectToComNet() 'The Project is set to connect when it is opened.
+            ElseIf ApplicationInfo.ConnectOnStartup Then
+                ConnectToComNet() 'The Application is set to connect when it is started.
+            Else
+                'Don't connect to ComNet.
+            End If
+
+        Else
+            'Connect to AppNet using the connection name StartupConnectionName.
+            ConnectToComNet(StartupConnectionName)
+        End If
+
+        'Start the timer to keep the connection awake:
+        'Timer3.Interval = 5000 '5 seconds - for testing
+        Timer3.Interval = TimeSpan.FromMinutes(55).TotalMilliseconds '55 minute interval
+        Timer3.Enabled = True
+        Timer3.Start()
 
     End Sub
 
+
+    Private Sub InitialiseForm()
+        'Initialise the form for a new project.
+        OpenStartPage()
+    End Sub
+
+    Private Sub ShowProjectInfo()
+        'Show the project information:
+
+        txtParentProject.Text = Project.ParentProjectName
+        txtAppNetName.Text = Project.GetParameter("AppNetName")
+        txtProjectName.Text = Project.Name
+        txtProjectDescription.Text = Project.Description
+        'txtProjectPath.Text = Project.Path
+        Select Case Project.Type
+            Case ADVL_Utilities_Library_1.Project.Types.Directory
+                txtProjectType.Text = "Directory"
+            Case ADVL_Utilities_Library_1.Project.Types.Archive
+                txtProjectType.Text = "Archive"
+            Case ADVL_Utilities_Library_1.Project.Types.Hybrid
+                txtProjectType.Text = "Hybrid"
+            Case ADVL_Utilities_Library_1.Project.Types.None
+                txtProjectType.Text = "None"
+        End Select
+        txtCreationDate.Text = Format(Project.Usage.FirstUsed, "d-MMM-yyyy H:mm:ss")
+        txtLastUsed.Text = Format(Project.Usage.LastUsed, "d-MMM-yyyy H:mm:ss")
+        txtProjectPath.Text = Project.Path
+
+        Select Case Project.SettingsLocn.Type
+            Case ADVL_Utilities_Library_1.FileLocation.Types.Directory
+                txtSettingsLocationType.Text = "Directory"
+            Case ADVL_Utilities_Library_1.FileLocation.Types.Archive
+                txtSettingsLocationType.Text = "Archive"
+        End Select
+        txtSettingsLocationPath.Text = Project.SettingsLocn.Path
+
+        Select Case Project.DataLocn.Type
+            Case ADVL_Utilities_Library_1.FileLocation.Types.Directory
+                txtDataLocationType.Text = "Directory"
+            Case ADVL_Utilities_Library_1.FileLocation.Types.Archive
+                txtDataLocationType.Text = "Archive"
+        End Select
+        txtDataLocationPath.Text = Project.DataLocn.Path
+
+        Select Case Project.SystemLocn.Type
+            Case ADVL_Utilities_Library_1.FileLocation.Types.Directory
+                txtSystemLocationType.Text = "Directory"
+            Case ADVL_Utilities_Library_1.FileLocation.Types.Archive
+                txtSystemLocationType.Text = "Archive"
+        End Select
+        txtSystemLocationPath.Text = Project.SystemLocn.Path
+
+        If Project.ConnectOnOpen Then
+            chkConnect.Checked = True
+        Else
+            chkConnect.Checked = False
+        End If
+
+        'txtTotalDuration.Text = Format(Project.Usage.TotalDuration.TotalHours, "#.##")
+        txtTotalDuration.Text = Project.Usage.TotalDuration.Days.ToString.PadLeft(5, "0"c) & ":" &
+                                Project.Usage.TotalDuration.Hours.ToString.PadLeft(2, "0"c) & ":" &
+                                Project.Usage.TotalDuration.Minutes.ToString.PadLeft(2, "0"c) & ":" &
+                                Project.Usage.TotalDuration.Seconds.ToString.PadLeft(2, "0"c)
+
+        'txtCurrentDuration.Text = Format(Project.Usage.CurrentDuration.TotalHours, "0.000")
+        txtCurrentDuration.Text = Project.Usage.CurrentDuration.Days.ToString.PadLeft(5, "0"c) & ":" &
+                                Project.Usage.CurrentDuration.Hours.ToString.PadLeft(2, "0"c) & ":" &
+                                Project.Usage.CurrentDuration.Minutes.ToString.PadLeft(2, "0"c) & ":" &
+                                Project.Usage.CurrentDuration.Seconds.ToString.PadLeft(2, "0"c)
+    End Sub
 
     'Private Sub cmbChartType_DrawItem(sender As Object, e As DrawItemEventArgs) Handles cmbChartType.DrawItem
 
@@ -914,7 +1306,7 @@ Public Class Main
     Private Sub btnExit_Click(sender As Object, e As EventArgs) Handles btnExit.Click
         'Exit the Application
 
-        DisconnectFromAppNet() 'Disconnect from the Application Network.
+        DisconnectFromComNet() 'Disconnect from the Application Network.
 
         'SaveFormSettings() 'Save the settings of this form. 'THESE ARE SAVED WHEN THE FORM_CLOSING EVENT TRIGGERS.
         SaveProjectSettings() 'Save project settings.
@@ -923,10 +1315,12 @@ Public Class Main
         ApplicationInfo.UnlockApplication()
 
         Project.SaveLastProjectInfo() 'Save information about the last project used.
+        Project.SaveParameters() 'ADDED 3Feb19
 
         'Project.SaveProjectInfoFile() 'Update the Project Information file. This is not required unless there is a change made to the project.
 
         Project.Usage.SaveUsageInfo() 'Save Project usage information.
+        Project.UnlockProject() 'Unlock the project.
 
         ApplicationUsage.SaveUsageInfo() 'Save Application usage information.
 
@@ -934,7 +1328,7 @@ Public Class Main
 
     End Sub
 
-    Private Sub Main_FormClosing(sender As Object, e As FormClosingEventArgs) Handles Me.FormClosing
+    Private Sub Main_FormClosing(sender As Object, e As FormClosingEventArgs) Handles MyBase.FormClosing
         'Save the form settings if the form state is normal. (A minimised form will have the incorrect size and location.)
         If WindowState = FormWindowState.Normal Then
             SaveFormSettings()
@@ -987,10 +1381,586 @@ Public Class Main
         ViewDatabaseData = Nothing
     End Sub
 
+    Private Sub btnWebPages_Click(sender As Object, e As EventArgs) Handles btnWebPages.Click
+        'Open the Web Pages form.
+
+        If IsNothing(WebPageList) Then
+            WebPageList = New frmWebPageList
+            WebPageList.Show()
+        Else
+            WebPageList.Show()
+            WebPageList.BringToFront()
+        End If
+    End Sub
+
+    Private Sub WebPageList_FormClosed(sender As Object, e As FormClosedEventArgs) Handles WebPageList.FormClosed
+        WebPageList = Nothing
+    End Sub
+
+    Public Function OpenNewWebPage() As Integer
+        'Open a new HTML Web View window, or reuse an existing one if avaiable.
+        'The new forms index number in WebViewFormList is returned.
+
+        NewWebPage = New frmWebPage
+        If WebPageFormList.Count = 0 Then
+            WebPageFormList.Add(NewWebPage)
+            WebPageFormList(0).FormNo = 0
+            WebPageFormList(0).Show
+            Return 0 'The new HTML Display is at position 0 in WebViewFormList()
+        Else
+            Dim I As Integer
+            Dim FormAdded As Boolean = False
+            For I = 0 To WebPageFormList.Count - 1 'Check if there are closed forms in WebViewFormList. They can be re-used.
+                If IsNothing(WebPageFormList(I)) Then
+                    WebPageFormList(I) = NewWebPage
+                    WebPageFormList(I).FormNo = I
+                    WebPageFormList(I).Show
+                    FormAdded = True
+                    Return I 'The new Html Display is at position I in WebViewFormList()
+                    Exit For
+                End If
+            Next
+            If FormAdded = False Then 'Add a new form to WebViewFormList
+                Dim FormNo As Integer
+                WebPageFormList.Add(NewWebPage)
+                FormNo = WebPageFormList.Count - 1
+                WebPageFormList(FormNo).FormNo = FormNo
+                WebPageFormList(FormNo).Show
+                Return FormNo 'The new WebPage is at position FormNo in WebPageFormList()
+            End If
+        End If
+    End Function
+
+    Public Sub WebPageFormClosed()
+        'This subroutine is called when the Web Page form has been closed.
+        'The subroutine is usually called from the FormClosed event of the WebPage form.
+        'The WebPage form may have multiple instances.
+        'The ClosedFormNumber property should contains the number of the instance of the WebPage form.
+        'This property should be updated by the WebPage form when it is being closed.
+        'The ClosedFormNumber property value is used to determine which element in WebPageList should be set to Nothing.
+
+        If WebPageFormList.Count < ClosedFormNo + 1 Then
+            'ClosedFormNo is too large to exist in WebPageFormList
+            Exit Sub
+        End If
+
+        If IsNothing(WebPageFormList(ClosedFormNo)) Then
+            'The form is already set to nothing
+        Else
+            WebPageFormList(ClosedFormNo) = Nothing
+        End If
+    End Sub
+
+    Public Function OpenNewHtmlDisplayPage() As Integer
+        'Open a new HTML display window, or reuse an existing one if avaiable.
+        'The new forms index number in HtmlDisplayFormList is returned.
+
+        NewHtmlDisplay = New frmHtmlDisplay
+        If HtmlDisplayFormList.Count = 0 Then
+            HtmlDisplayFormList.Add(NewHtmlDisplay)
+            HtmlDisplayFormList(0).FormNo = 0
+            HtmlDisplayFormList(0).Show
+            Return 0 'The new HTML Display is at position 0 in HtmlDisplayFormList()
+        Else
+            Dim I As Integer
+            Dim FormAdded As Boolean = False
+            For I = 0 To HtmlDisplayFormList.Count - 1 'Check if there are closed forms in HtmlDisplayFormList. They can be re-used.
+                If IsNothing(HtmlDisplayFormList(I)) Then
+                    HtmlDisplayFormList(I) = NewHtmlDisplay
+                    HtmlDisplayFormList(I).FormNo = I
+                    HtmlDisplayFormList(I).Show
+                    FormAdded = True
+                    Return I 'The new Html Display is at position I in HtmlDisplayFormList()
+                    Exit For
+                End If
+            Next
+            If FormAdded = False Then 'Add a new form to HtmlDisplayFormList
+                Dim FormNo As Integer
+                HtmlDisplayFormList.Add(NewHtmlDisplay)
+                FormNo = HtmlDisplayFormList.Count - 1
+                HtmlDisplayFormList(FormNo).FormNo = FormNo
+                HtmlDisplayFormList(FormNo).Show
+                Return FormNo 'The new HtmlDisplay is at position FormNo in HtmlDisplayFormList()
+            End If
+        End If
+    End Function
 
 #End Region 'Open and Close Forms -------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 #Region " Form Methods - The main actions performed by this form." '---------------------------------------------------------------------------------------------------------------------------
+
+
+    Public Sub UpdateWebPage(ByVal FileName As String)
+        'Update the web page in WebPageFormList if the Web file name is FileName.
+
+        Dim NPages As Integer = WebPageFormList.Count
+        Dim I As Integer
+
+        'For I = 0 To NPages - 1
+        '    If WebPageFormList(I).FileName = FileName Then
+        '        WebPageFormList(I).OpenDocument
+        '    End If
+        'Next
+        Try
+            For I = 0 To NPages - 1
+                If IsNothing(WebPageFormList(I)) Then
+                    'Web page has been deleted!
+                Else
+                    If WebPageFormList(I).FileName = FileName Then
+                        WebPageFormList(I).OpenDocument
+                    End If
+                End If
+            Next
+        Catch ex As Exception
+            Message.AddWarning(ex.Message & vbCrLf)
+        End Try
+    End Sub
+
+    Private Sub btnParameters_Click(sender As Object, e As EventArgs) Handles btnParameters.Click
+        Project.ShowParameters()
+    End Sub
+
+    Private Sub btnOpenProject_Click(sender As Object, e As EventArgs) Handles btnOpenProject.Click
+        If Project.Type = ADVL_Utilities_Library_1.Project.Types.Archive Then
+
+        Else
+            Process.Start(Project.Path)
+        End If
+    End Sub
+
+    Private Sub btnOpenSettings_Click(sender As Object, e As EventArgs) Handles btnOpenSettings.Click
+        If Project.SettingsLocn.Type = ADVL_Utilities_Library_1.FileLocation.Types.Directory Then
+            Process.Start(Project.SettingsLocn.Path)
+        End If
+    End Sub
+
+    Private Sub btnOpenData_Click(sender As Object, e As EventArgs) Handles btnOpenData.Click
+        If Project.DataLocn.Type = ADVL_Utilities_Library_1.FileLocation.Types.Directory Then
+            Process.Start(Project.DataLocn.Path)
+        End If
+    End Sub
+
+    Private Sub btnOpenSystem_Click(sender As Object, e As EventArgs) Handles btnOpenSystem.Click
+        If Project.SystemLocn.Type = ADVL_Utilities_Library_1.FileLocation.Types.Directory Then
+            Process.Start(Project.SystemLocn.Path)
+        End If
+    End Sub
+
+    Private Sub btnOpenAppDir_Click(sender As Object, e As EventArgs) Handles btnOpenAppDir.Click
+        Process.Start(ApplicationInfo.ApplicationDir)
+    End Sub
+
+    Private Sub chkConnect_Layout(sender As Object, e As LayoutEventArgs) Handles chkConnect.Layout
+        If chkConnect.Checked Then
+            Project.ConnectOnOpen = True
+        Else
+            Project.ConnectOnOpen = False
+        End If
+        Project.SaveProjectInfoFile()
+
+    End Sub
+
+    Private Sub Timer3_Tick(sender As Object, e As EventArgs) Handles Timer3.Tick
+        'Keet the connection awake with each tick:
+
+        If ConnectedToComNet = True Then
+            Try
+                If client.IsAlive() Then
+                    Message.Add(Format(Now, "HH:mm:ss") & " Connection OK." & vbCrLf)
+                    Timer3.Interval = TimeSpan.FromMinutes(55).TotalMilliseconds '55 minute interval
+                Else
+                    Message.Add(Format(Now, "HH:mm:ss") & " Connection Fault." & vbCrLf)
+                    Timer3.Interval = TimeSpan.FromMinutes(55).TotalMilliseconds '55 minute interval
+                End If
+            Catch ex As Exception
+                Message.AddWarning(ex.Message & vbCrLf)
+                'Set interval to five minutes - try again in five minutes:
+                Timer3.Interval = TimeSpan.FromMinutes(5).TotalMilliseconds '5 minute interval
+            End Try
+        Else
+            Message.Add(Format(Now, "HH:mm:ss") & " Not connected." & vbCrLf)
+        End If
+
+    End Sub
+
+
+#Region " Start Page Code" '=========================================================================================================================================
+
+    Public Sub OpenStartPage()
+        'Open the StartPage.html file and display in the Start Page tab.
+
+        If Project.DataFileExists("StartPage.html") Then
+            StartPageFileName = "StartPage.html"
+            DisplayStartPage()
+        Else
+            CreateStartPage()
+            StartPageFileName = "StartPage.html"
+            DisplayStartPage()
+        End If
+
+    End Sub
+
+    Public Sub DisplayStartPage()
+        'Display the StartPage.html file in the Start Page tab.
+
+        'If Project.DataFileExists("StartPage.html") Then
+        If Project.DataFileExists(StartPageFileName) Then
+            Dim rtbData As New IO.MemoryStream
+            'Project.ReadData("StartPage.html", rtbData)
+            Project.ReadData(StartPageFileName, rtbData)
+            rtbData.Position = 0
+            Dim sr As New IO.StreamReader(rtbData)
+            WebBrowser1.DocumentText = sr.ReadToEnd()
+            'StartPageFileName = "StartPage.html"
+        Else
+            Message.AddWarning("Web page file not found: " & StartPageFileName & vbCrLf)
+            'StartPageFileName = ""
+        End If
+    End Sub
+
+    Private Sub CreateStartPage()
+        'Create a new default StartPage.html file.
+
+        Dim htmData As New IO.MemoryStream
+        Dim sw As New IO.StreamWriter(htmData)
+        sw.Write(DefaultHtmlString("Start Page"))
+        sw.Flush()
+        Project.SaveData("StartPage.html", htmData)
+    End Sub
+
+    Public Function DefaultHtmlString(ByVal DocumentTitle As String) As String
+        'Create a blank HTML Web Page.
+
+        Dim sb As New System.Text.StringBuilder
+
+        sb.Append("<!DOCTYPE html>" & vbCrLf)
+        sb.Append("<html>" & vbCrLf & "<head>" & vbCrLf & "<title>" & DocumentTitle & "</title>" & vbCrLf)
+        sb.Append("</head>" & vbCrLf & "<body>" & vbCrLf & vbCrLf)
+        'sb.Append("<h1>Start Page</h1>" & vbCrLf & vbCrLf)
+        sb.Append("<h1>" & DocumentTitle & "</h1>" & vbCrLf & vbCrLf)
+
+        'Add JavaScript section:
+        sb.Append("<script>" & vbCrLf & vbCrLf)
+
+        'START: User defined JavaScript functions ==========================================================================
+        'Add functions to implement the main actions performed by this web page.
+        sb.Append("//START: User defined JavaScript functions ==========================================================================" & vbCrLf)
+        sb.Append("//  Add functions to implement the main actions performed by this web page." & vbCrLf & vbCrLf)
+
+        sb.Append("//END:   User defined JavaScript functions __________________________________________________________________________" & vbCrLf & vbCrLf & vbCrLf)
+        'END:   User defined JavaScript functions --------------------------------------------------------------------------
+
+
+        'START: User modified JavaScript functions ==========================================================================
+        'Modify these function to save all required web page settings and process all expected XMessage instructions.
+        sb.Append("//START: User modified JavaScript functions ==========================================================================" & vbCrLf)
+        sb.Append("//  Modify these function to save all required web page settings and process all expected XMessage instructions." & vbCrLf & vbCrLf)
+
+        'Add the SaveSettings function - This is used to save web page settings between sessions.
+        sb.Append("//Save the web page settings." & vbCrLf)
+        sb.Append("function SaveSettings() {" & vbCrLf)
+        sb.Append("  var xSettings = ""<Settings>"" + "" \n"" ; //String containing the web page settings in XML format." & vbCrLf)
+        sb.Append("  //Add xml lines to save each setting." & vbCrLf & vbCrLf)
+        sb.Append("  xSettings +=    ""</Settings>"" + ""\n"" ; //End of the Settings element." & vbCrLf)
+        sb.Append(vbCrLf)
+        sb.Append("  //Save the settings as an XML file in the project." & vbCrLf)
+        sb.Append("  window.external.SaveHtmlSettings(xSettings) ;" & vbCrLf)
+        sb.Append("}" & vbCrLf)
+        sb.Append(vbCrLf)
+
+        'Process a single XMsg instruction (Information:Location pair)
+        sb.Append("//Process an XMessage instruction:" & vbCrLf)
+        sb.Append("function XMsgInstruction(Info, Locn) {" & vbCrLf)
+        sb.Append("  switch(Locn) {" & vbCrLf)
+        sb.Append("  //Insert case statements here." & vbCrLf)
+        sb.Append("  default:" & vbCrLf)
+        sb.Append("    window.external.AddWarning(""Unknown location: "" + Locn + ""\r\n"") ;" & vbCrLf)
+        sb.Append("  }" & vbCrLf)
+        sb.Append("}" & vbCrLf)
+        sb.Append(vbCrLf)
+
+        sb.Append("//END:   User modified JavaScript functions __________________________________________________________________________" & vbCrLf & vbCrLf & vbCrLf)
+        'END:   User modified JavaScript functions --------------------------------------------------------------------------
+
+        'START: Required Document Library Web Page JavaScript functions ==========================================================================
+        sb.Append("//START: Required Document Library Web Page JavaScript functions ==========================================================================" & vbCrLf & vbCrLf)
+
+        'Add the AddText function - This sends a message to the message window using a named text type.
+        sb.Append("//Add text to the Message window using a named txt type:" & vbCrLf)
+        sb.Append("function AddText(Msg, TextType) {" & vbCrLf)
+        sb.Append("  window.external.AddText(Msg, TextType) ;" & vbCrLf)
+        sb.Append("}" & vbCrLf)
+        sb.Append(vbCrLf)
+
+        'Add the AddMessage function - This sends a message to the message window using default black text.
+        sb.Append("//Add a message to the Message window using the default black text:" & vbCrLf)
+        sb.Append("function AddMessage(Msg) {" & vbCrLf)
+        sb.Append("  window.external.AddMessage(Msg) ;" & vbCrLf)
+        sb.Append("}" & vbCrLf)
+        sb.Append(vbCrLf)
+
+        'Add the AddWarning function - This sends a red, bold warning message to the message window.
+        sb.Append("//Add a warning message to the Message window using bold red text:" & vbCrLf)
+        sb.Append("function AddWarning(Msg) {" & vbCrLf)
+        sb.Append("  window.external.AddWarning(Msg) ;" & vbCrLf)
+        sb.Append("}" & vbCrLf)
+        sb.Append(vbCrLf)
+
+        'Add the RestoreSettings function - This is used to restore web page settings.
+        sb.Append("//Restore the web page settings." & vbCrLf)
+        sb.Append("function RestoreSettings() {" & vbCrLf)
+        sb.Append("  window.external.RestoreHtmlSettings() " & vbCrLf)
+        sb.Append("}" & vbCrLf)
+        sb.Append(vbCrLf)
+
+        'This line runs the RestoreSettings function when the web page is loaded.
+        sb.Append("//Restore the web page settings when the page loads." & vbCrLf)
+        sb.Append("window.onload = RestoreSettings; " & vbCrLf)
+        sb.Append(vbCrLf)
+
+        'Restores a single setting on the web page.
+        sb.Append("//Restore a web page setting." & vbCrLf)
+        sb.Append("  function RestoreSetting(FormName, ItemName, ItemValue) {" & vbCrLf)
+        sb.Append("  document.forms[FormName][ItemName].value = ItemValue ;" & vbCrLf)
+        sb.Append("}" & vbCrLf)
+        sb.Append(vbCrLf)
+
+        'Add the RestoreOption function - This is used to add an option to a Select list.
+        sb.Append("//Restore a Select control Option." & vbCrLf)
+        sb.Append("function RestoreOption(SelectId, OptionText) {" & vbCrLf)
+        sb.Append("  var x = document.getElementById(SelectId) ;" & vbCrLf)
+        sb.Append("  var option = document.createElement(""Option"") ;" & vbCrLf)
+        sb.Append("  option.text = OptionText ;" & vbCrLf)
+        sb.Append("  x.add(option) ;" & vbCrLf)
+        sb.Append("}" & vbCrLf)
+        sb.Append(vbCrLf)
+
+        sb.Append("//END:   Required Document Library Web Page JavaScript functions __________________________________________________________________________" & vbCrLf & vbCrLf)
+        'END:   Required Document Library Web Page JavaScript functions --------------------------------------------------------------------------
+
+        sb.Append("</script>" & vbCrLf & vbCrLf)
+
+        sb.Append("</body>" & vbCrLf & "</html>" & vbCrLf)
+
+        Return sb.ToString
+
+    End Function
+
+#End Region 'Start Page Code ------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+#Region " Methods Called by JavaScript - A collection of methods that can be called by JavaScript in a web page shown in WebBrowser1" '==================================
+    'These methods are used to display HTML pages in the Document tab.
+    'The same methods can be found in the WebView form, which displays web pages on seprate forms.
+
+    Public Sub JSMethodTest1()
+        'Test method that is called from JavaScript.
+        Message.Add("JSMethodTest1 called OK." & vbCrLf)
+    End Sub
+
+    Public Sub JSMethodTest2(ByVal Var1 As String, ByVal Var2 As String)
+        'Test method that is called from JavaScript.
+        Message.Add("Var1 = " & Var1 & " Var2 = " & Var2 & vbCrLf)
+    End Sub
+
+    Public Sub JSDisplayXml(ByRef XDoc As XDocument)
+        Message.Add(XDoc.ToString & vbCrLf & vbCrLf)
+    End Sub
+
+    Public Sub ShowMessage(ByVal Msg As String)
+        Message.Add(Msg)
+    End Sub
+
+    Public Sub SaveHtmlSettings(ByVal xSettings As String, ByVal FileName As String)
+        'Save the Html settings for a web page.
+
+        'Convert the XSettings to XML format:
+
+        Dim XmlHeader As String = "<?xml version=""1.0"" encoding=""utf-8"" standalone=""yes""?>"
+
+        Dim XDocSettings As New System.Xml.Linq.XDocument
+
+        Try
+            XDocSettings = System.Xml.Linq.XDocument.Parse(XmlHeader & vbCrLf & xSettings)
+        Catch ex As Exception
+            Message.AddWarning("Error saving HTML settings file. " & ex.Message & vbCrLf)
+        End Try
+
+        Project.SaveXmlData(FileName, XDocSettings)
+
+    End Sub
+
+    Public Sub RestoreHtmlSettings_Old(ByVal FileName As String)
+        'Restore the Html settings for a web page.
+
+        Dim XDocSettings As New System.Xml.Linq.XDocument
+        Project.ReadXmlData(FileName, XDocSettings)
+
+        If XDocSettings Is Nothing Then
+            'Message.Add("No HTML Settings file : " & FileName & vbCrLf)
+        Else
+            Dim XSettings As New System.Xml.XmlDocument
+            Try
+                XSettings.LoadXml(XDocSettings.ToString)
+
+                'Run the Settings file:
+                XSeq.RunXSequence(XSettings, XStatus)
+            Catch ex As Exception
+                Message.AddWarning("Error restoring HTML settings. " & ex.Message & vbCrLf)
+            End Try
+        End If
+    End Sub
+
+    Public Sub RestoreHtmlSettings()
+        'Restore the Html settings for a web page.
+
+        'Dim SettingsFileName As String = txtNodeKey.Text & "Settings"
+        Dim SettingsFileName As String = StartPageFileName & "Settings"
+
+        Dim XDocSettings As New System.Xml.Linq.XDocument
+        Project.ReadXmlData(SettingsFileName, XDocSettings)
+
+        If XDocSettings Is Nothing Then
+            'Message.Add("No HTML Settings file : " & SettingsFileName & vbCrLf)
+        Else
+            Dim XSettings As New System.Xml.XmlDocument
+            Try
+                XSettings.LoadXml(XDocSettings.ToString)
+                'Run the Settings file:
+                XSeq.RunXSequence(XSettings, Status)
+            Catch ex As Exception
+                Message.AddWarning("Error restoring HTML settings. " & ex.Message & vbCrLf)
+            End Try
+        End If
+    End Sub
+
+    Private Sub XSeq_ErrorMsg(ErrMsg As String) Handles XSeq.ErrorMsg
+        Message.AddWarning(ErrMsg & vbCrLf)
+    End Sub
+
+
+    Private Sub XSeq_Instruction(Info As String, Locn As String) Handles XSeq.Instruction
+        'Execute each instruction produced by running the XSeq file.
+
+        Select Case Locn
+            Case "Settings:Form:Name"
+                FormName = Info
+
+            Case "Settings:Form:Item:Name"
+                ItemName = Info
+
+            Case "Settings:Form:Item:Value"
+                RestoreSetting(FormName, ItemName, Info)
+
+            Case "Settings:Form:SelectId"
+                SelectId = Info
+
+            Case "Settings:Form:OptionText"
+                RestoreOption(SelectId, Info)
+
+            ''Start Project commands: ----------------------------------------------------
+            'Case "StartProject:AppName"
+            '    StartProject_AppName = Info
+
+            'Case "StartProject:ConnectionName"
+            '    StartProject_ConnName = Info
+
+            'Case "StartProject:ProjectID"
+            '    StartProject_ProjID = Info
+
+            'Case "StartProject:Command"
+            '    Select Case Info
+            '        Case "Apply"
+            '            StartApp_ProjectID(StartProject_AppName, StartProject_ProjID, StartProject_ConnName)
+            '        Case Else
+            '            Message.AddWarning("Unknown Start Project command : " & Info & vbCrLf)
+            '    End Select
+
+            ''END Start project commands ---------------------------------------------
+
+
+
+            Case "Settings"
+
+            Case "EndOfSequence"
+                'Main.Message.Add("End of processing sequence" & Info & vbCrLf)
+
+            Case Else
+                'Main.Message.AddWarning("Unknown location: " & Locn & "  Info: " & Info & vbCrLf)
+                Message.AddWarning("Unknown location: " & Locn & "  Info: " & Info & vbCrLf)
+
+        End Select
+    End Sub
+
+
+    Public Sub RestoreSetting(ByVal FormName As String, ByVal ItemName As String, ByVal ItemValue As String)
+        'Restore the setting value with the specified Form Name and Item Name.
+
+        Me.WebBrowser1.Document.InvokeScript("RestoreSetting", New String() {FormName, ItemName, ItemValue})
+
+    End Sub
+
+    Public Sub RestoreOption(ByVal SelectId As String, ByVal OptionText As String)
+        'Restore the Option text in the Select control with the Id SelectId.
+
+        Me.WebBrowser1.Document.InvokeScript("RestoreOption", New String() {SelectId, OptionText})
+    End Sub
+
+    Private Sub SaveWebPageSettings()
+        'Call the SaveSettings JavaScript function:
+        Try
+            Me.WebBrowser1.Document.InvokeScript("SaveSettings")
+        Catch ex As Exception
+            Message.AddWarning("Web page settings not saved: " & ex.Message & vbCrLf)
+        End Try
+
+    End Sub
+
+    Public Function GetFormNo() As String
+        'Return FormNo.ToString
+        Return "-1"
+    End Function
+
+    Public Sub AddText(ByVal Msg As String, ByVal TextType As String)
+        Message.AddText(Msg, TextType)
+    End Sub
+
+    Public Sub AddMessage(ByVal Msg As String)
+        Message.Add(Msg)
+    End Sub
+
+    Public Sub AddWarning(ByVal Msg As String)
+        Message.AddWarning(Msg)
+    End Sub
+
+
+    Public Sub SendXMessage(ByVal ConnName As String, ByVal XMsg As String)
+        'Send the XMessage to the application with the connection name ConnName.
+
+        'myMsgService.SendMessage(ConnName, XMsg) 'ERROR myMsgService is Nothing
+        '   myMsgService.SendMessage(ConnName, XMsg)
+
+        'myHost.
+        'myHost.
+
+        'myHost.
+
+        '  xxx
+
+    End Sub
+
+    Public Sub RunXSequence(ByVal XSequence As String)
+        'Run the XMSequence
+        Dim XmlSeq As New System.Xml.XmlDocument
+        XmlSeq.LoadXml(XSequence)
+        XSeq.RunXSequence(XmlSeq, Status)
+
+    End Sub
+
+
+#End Region 'Methods Called by JavaScript -------------------------------------------------------------------------------------------------------------------------------
+
+
+
 
     Private Sub btnAppInfo_Click(sender As Object, e As EventArgs) Handles btnAppInfo.Click
         ApplicationInfo.ShowInfo()
@@ -1184,7 +2154,7 @@ Public Class Main
 
         Try
             dataAdapter.Fill(ds, "SelTable")
-            UpdateChartQuery
+            UpdateChartQuery()
         Catch ex As Exception
             Message.AddWarning("Error applying query." & vbCrLf)
             Message.AddWarning(ex.Message & vbCrLf)
@@ -1203,6 +2173,168 @@ Public Class Main
 
 
 #Region "Chart Settings Tab" '---------------------------------------------------------------------------------------------------------------------------------------------------------
+
+    'New chart - default settings.
+    Private Sub btnNewChart_Click(sender As Object, e As EventArgs) Handles btnNewChart.Click
+        ClearChart()
+    End Sub
+
+    Public Sub ClearChart()
+        Select Case ChartType
+            Case Charting.SeriesChartType.Area
+
+            Case Charting.SeriesChartType.Bar
+
+            Case Charting.SeriesChartType.BoxPlot
+
+            Case Charting.SeriesChartType.Bubble
+
+            Case Charting.SeriesChartType.Candlestick
+
+            Case Charting.SeriesChartType.Column
+
+            Case Charting.SeriesChartType.Doughnut
+
+            Case Charting.SeriesChartType.ErrorBar
+
+            Case Charting.SeriesChartType.FastLine
+
+            Case Charting.SeriesChartType.FastPoint
+
+            Case Charting.SeriesChartType.Funnel
+
+            Case Charting.SeriesChartType.Kagi
+
+            Case Charting.SeriesChartType.Line
+
+            Case Charting.SeriesChartType.Pie
+
+            Case Charting.SeriesChartType.Point
+                'PointChart = New PointChart
+                'SetUpPointChartForm()
+                PointChart.Clear()
+                UpdatePointChartForm()
+            Case Charting.SeriesChartType.PointAndFigure
+
+            Case Charting.SeriesChartType.Polar
+
+            Case Charting.SeriesChartType.Pyramid
+
+            Case Charting.SeriesChartType.Radar
+
+            Case Charting.SeriesChartType.Range
+
+            Case Charting.SeriesChartType.RangeBar
+
+            Case Charting.SeriesChartType.RangeColumn
+
+            Case Charting.SeriesChartType.Renko
+
+            Case Charting.SeriesChartType.Spline
+
+            Case Charting.SeriesChartType.SplineArea
+
+            Case Charting.SeriesChartType.SplineRange
+
+            Case Charting.SeriesChartType.StackedArea
+
+            Case Charting.SeriesChartType.StackedArea100
+
+            Case Charting.SeriesChartType.StackedBar
+
+            Case Charting.SeriesChartType.StackedBar100
+
+            Case Charting.SeriesChartType.StackedColumn
+
+            Case Charting.SeriesChartType.StackedColumn100
+
+            Case Charting.SeriesChartType.StepLine
+
+            Case Charting.SeriesChartType.Stock
+                'StockChart = New StockChart
+                'SetUpStockChartForm()
+                StockChart.Clear()
+                UpdateStockChartForm()
+            Case Charting.SeriesChartType.ThreeLineBreak
+
+        End Select
+    End Sub
+
+    'Set up the settings forms for the chart type selected.
+    Public Sub SetUpChartForm()
+        Select Case ChartType
+            Case Charting.SeriesChartType.Area
+
+            Case Charting.SeriesChartType.Bar
+
+            Case Charting.SeriesChartType.BoxPlot
+
+            Case Charting.SeriesChartType.Bubble
+
+            Case Charting.SeriesChartType.Candlestick
+
+            Case Charting.SeriesChartType.Column
+
+            Case Charting.SeriesChartType.Doughnut
+
+            Case Charting.SeriesChartType.ErrorBar
+
+            Case Charting.SeriesChartType.FastLine
+
+            Case Charting.SeriesChartType.FastPoint
+
+            Case Charting.SeriesChartType.Funnel
+
+            Case Charting.SeriesChartType.Kagi
+
+            Case Charting.SeriesChartType.Line
+
+            Case Charting.SeriesChartType.Pie
+
+            Case Charting.SeriesChartType.Point
+                SetUpPointChartForm()
+            Case Charting.SeriesChartType.PointAndFigure
+
+            Case Charting.SeriesChartType.Polar
+
+            Case Charting.SeriesChartType.Pyramid
+
+            Case Charting.SeriesChartType.Radar
+
+            Case Charting.SeriesChartType.Range
+
+            Case Charting.SeriesChartType.RangeBar
+
+            Case Charting.SeriesChartType.RangeColumn
+
+            Case Charting.SeriesChartType.Renko
+
+            Case Charting.SeriesChartType.Spline
+
+            Case Charting.SeriesChartType.SplineArea
+
+            Case Charting.SeriesChartType.SplineRange
+
+            Case Charting.SeriesChartType.StackedArea
+
+            Case Charting.SeriesChartType.StackedArea100
+
+            Case Charting.SeriesChartType.StackedBar
+
+            Case Charting.SeriesChartType.StackedBar100
+
+            Case Charting.SeriesChartType.StackedColumn
+
+            Case Charting.SeriesChartType.StackedColumn100
+
+            Case Charting.SeriesChartType.StepLine
+
+            Case Charting.SeriesChartType.Stock
+                SetUpStockChartForm()
+            Case Charting.SeriesChartType.ThreeLineBreak
+
+        End Select
+    End Sub
 
 #Region " Area Chart Settings" '-------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -1271,8 +2403,23 @@ Public Class Main
                 Chart1.ChartAreas(0).AxisY.Maximum = StockChart.YAxis.Maximum
             End If
 
-            Chart1.ChartAreas(0).AxisY.MajorGrid.Interval = 5 'Set the grid interval 
-            Chart1.ChartAreas(0).AxisY.Interval = 5 'Set the annotation interval
+            'Chart1.ChartAreas(0).AxisY.MajorGrid.Interval = 5 'Set the grid interval 
+            'Chart1.ChartAreas(0).AxisY.Interval = 5 'Set the annotation interval
+
+            'Specify Y Axis annotation and major grid intervals: -----------------------------------------------------
+            If StockChart.YAxis.AutoInterval = True Then
+                Chart1.ChartAreas(0).AxisY.Interval = 0
+            Else
+                Chart1.ChartAreas(0).AxisY.Interval = StockChart.YAxis.Interval
+            End If
+
+            If StockChart.YAxis.AutoMajorGridInterval = True Then
+                Chart1.ChartAreas(0).AxisY.MajorGrid.Interval = 0
+                Message.Add("Y Axis major grid interval is automatic." & vbCrLf)
+            Else
+                Chart1.ChartAreas(0).AxisY.MajorGrid.Interval = StockChart.YAxis.MajorGridInterval
+            End If
+
 
             'Specify X Axis range: ------------------------------------------------------------------------------
             If StockChart.XAxis.AutoMinimum = True Then
@@ -1285,6 +2432,26 @@ Public Class Main
             Else
                 Chart1.ChartAreas(0).AxisX.Maximum = StockChart.XAxis.Maximum
             End If
+
+            'Specify X Axis annotation and major grid intervals: -----------------------------------------------------
+            Chart1.ChartAreas(0).AxisX.IntervalType = Charting.DateTimeIntervalType.Auto
+
+            If StockChart.XAxis.AutoInterval = True Then
+                Chart1.ChartAreas(0).AxisX.Interval = 0
+            Else
+                Chart1.ChartAreas(0).AxisX.Interval = StockChart.XAxis.Interval
+            End If
+
+            If StockChart.XAxis.AutoMajorGridInterval = True Then
+                Chart1.ChartAreas(0).AxisX.MajorGrid.Interval = 0
+                Message.Add("X Axis major grid interval is automatic." & vbCrLf)
+            Else
+                Chart1.ChartAreas(0).AxisX.MajorGrid.Interval = StockChart.XAxis.MajorGridInterval
+            End If
+
+            'Chart1.ChartAreas(0).RecalculateAxesScale()
+
+            Chart1.ChartAreas(0).AxisX.LabelStyle.IsEndLabelVisible = True
 
             'Specify X Axis label: ------------------------------------------------------------------------------------
             Chart1.ChartAreas(0).AxisX.TitleAlignment = StockChart.XAxis.TitleAlignment
@@ -1350,9 +2517,12 @@ Public Class Main
             Chart1.Titles("Label1").Font = New Font("Arial", StockChart.ChartLabel.Size, myFontStyle2)
             Chart1.Titles("Label1").Alignment = StockChart.ChartLabel.Alignment
 
+            Chart1.ChartAreas(0).AxisX.LabelStyle.IsEndLabelVisible = True
+
             'Display selected chart information:
             Message.Add(vbCrLf & "Main.Chart1.ChartAreas.Count: " & Chart1.ChartAreas.Count & vbCrLf) '1
             Message.Add("Main.Chart1.ChartAreas(0).Name: " & Chart1.ChartAreas(0).Name & vbCrLf) 'ChartArea1
+            'Message.Add("Main.Chart1.ChartAreas(0).AxisX.Minimum: " & Chart1.ChartAreas(0).AxisX. & vbCrLf)
             Message.Add("Main.Chart1.ChartAreas(0).AxisX.Minimum: " & Chart1.ChartAreas(0).AxisX.Minimum & vbCrLf) '0
             Message.Add("Main.Chart1.ChartAreas(0).AxisX.Maximum: " & Chart1.ChartAreas(0).AxisX.Maximum & vbCrLf) '1
             Message.Add("Main.Chart1.ChartAreas(0).AxisY.Minimum: " & Chart1.ChartAreas(0).AxisY.Minimum & vbCrLf) 'NaN
@@ -1524,13 +2694,24 @@ Public Class Main
         End If
 
         'Update Stock Chart label settings:
-        StockChart.ChartLabel.FontName = FontDialog1.Font.Name
-        StockChart.ChartLabel.Size = FontDialog1.Font.Size
-        StockChart.ChartLabel.Bold = FontDialog1.Font.Bold
-        StockChart.ChartLabel.Italic = FontDialog1.Font.Italic
-        StockChart.ChartLabel.Strikeout = FontDialog1.Font.Strikeout
-        StockChart.ChartLabel.Underline = FontDialog1.Font.Underline
+        'StockChart.ChartLabel.FontName = FontDialog1.Font.Name
+        'StockChart.ChartLabel.Size = FontDialog1.Font.Size
+        'StockChart.ChartLabel.Bold = FontDialog1.Font.Bold
+        'StockChart.ChartLabel.Italic = FontDialog1.Font.Italic
+        'StockChart.ChartLabel.Strikeout = FontDialog1.Font.Strikeout
+        'StockChart.ChartLabel.Underline = FontDialog1.Font.Underline
+        'StockChart.ChartLabel.Text = txtChartTitle.Text
+
+        StockChart.ChartLabel.FontName = txtChartTitle.Font.Name
+        StockChart.ChartLabel.Size = txtChartTitle.Font.Size
+        StockChart.ChartLabel.Bold = txtChartTitle.Font.Bold
+        StockChart.ChartLabel.Italic = txtChartTitle.Font.Italic
+        StockChart.ChartLabel.Strikeout = txtChartTitle.Font.Strikeout
+        StockChart.ChartLabel.Underline = txtChartTitle.Font.Underline
         StockChart.ChartLabel.Text = txtChartTitle.Text
+        'StockChart.ChartLabel.Color = Color.FromName(txtChartTitle.ForeColor) 'Color.FromName(StockChart.ChartLabel.Color)
+        StockChart.ChartLabel.Color = txtChartTitle.ForeColor.ToString
+
         If IsNothing(cmbAlignment.SelectedItem) Then
         Else
             StockChart.ChartLabel.Alignment = [Enum].Parse(GetType(ContentAlignment), cmbAlignment.SelectedItem.ToString)
@@ -1560,6 +2741,25 @@ Public Class Main
         StockChart.XAxis.Minimum = Val(txtXAxisMin.Text)
         StockChart.XAxis.Maximum = Val(txtXAxisMax.Text)
 
+        If chkXAxisAutoAnnotInt.Checked = True Then
+            StockChart.XAxis.Interval = 0 '0 indicates auto annotation.
+            StockChart.XAxis.AutoInterval = True
+        Else
+            StockChart.XAxis.Interval = Val(txtXAxisAnnotInt.Text)
+            StockChart.XAxis.AutoInterval = False
+        End If
+
+        If chkXAxisAutoMajGridInt.Checked = True Then
+            StockChart.XAxis.MajorGridInterval = 0
+            StockChart.XAxis.AutoMajorGridInterval = True
+            'Message.Add("X Axis major grid interval set to auto." & vbCrLf)
+        Else
+            StockChart.XAxis.MajorGridInterval = Val(txtXAxisMajGridInt.Text)
+            StockChart.XAxis.AutoMajorGridInterval = False
+            'Message.Add("X Axis major grid interval set to: " & txtXAxisMajGridInt.Text & vbCrLf)
+        End If
+
+
         'Update Y Axis settings:
         StockChart.YAxis.Title.FontName = txtYAxisTitle.Font.Name
         StockChart.YAxis.Title.Size = txtYAxisTitle.Font.Size
@@ -1584,6 +2784,25 @@ Public Class Main
 
         StockChart.YAxis.Minimum = Val(txtYAxisMin.Text)
         StockChart.YAxis.Maximum = Val(txtYAxisMax.Text)
+
+        If chkYAxisAutoAnnotInt.Checked = True Then
+            StockChart.YAxis.Interval = 0 '0 indicates auto annotation.
+            StockChart.YAxis.AutoInterval = True
+        Else
+            StockChart.YAxis.Interval = Val(txtYAxisAnnotInt.Text)
+            StockChart.YAxis.AutoInterval = False
+        End If
+
+        If chkYAxisAutoMajGridInt.Checked = True Then
+            StockChart.YAxis.MajorGridInterval = 0
+            StockChart.YAxis.AutoMajorGridInterval = True
+            'Message.Add("Y Axis major grid interval set to auto." & vbCrLf)
+        Else
+            StockChart.YAxis.MajorGridInterval = Val(txtYAxisMajGridInt.Text)
+            StockChart.YAxis.AutoMajorGridInterval = False
+            'Message.Add("Y Axis major grid interval set to:" & txtYAxisMajGridInt.Text & vbCrLf)
+        End If
+
 
     End Sub
 
@@ -1693,6 +2912,12 @@ Public Class Main
         txtXAxisMin.Text = StockChart.XAxis.Minimum
         txtXAxisMax.Text = StockChart.XAxis.Maximum
 
+        chkXAxisAutoAnnotInt.Checked = StockChart.XAxis.AutoInterval
+        chkXAxisAutoMajGridInt.Checked = StockChart.XAxis.AutoMajorGridInterval
+
+        txtXAxisAnnotInt.Text = StockChart.XAxis.Interval
+        txtXAxisMajGridInt.Text = StockChart.XAxis.MajorGridInterval
+
         'Update the YAxis settings: -----------------------------------------------------------------------------
         txtYAxisTitle.Text = StockChart.YAxis.Title.Text
         txtYAxisTitle.ForeColor = Color.FromName(StockChart.YAxis.Title.Color)
@@ -1718,6 +2943,12 @@ Public Class Main
 
         txtYAxisMin.Text = StockChart.YAxis.Minimum
         txtYAxisMax.Text = StockChart.YAxis.Maximum
+
+        chkYAxisAutoAnnotInt.Checked = StockChart.YAxis.AutoInterval
+        chkYAxisAutoMajGridInt.Checked = StockChart.YAxis.AutoMajorGridInterval
+
+        txtYAxisAnnotInt.Text = StockChart.YAxis.Interval
+        txtYAxisMajGridInt.Text = StockChart.YAxis.MajorGridInterval
 
         'Update chart File Name:
         txtChartFileName.Text = StockChart.FileName
@@ -1787,10 +3018,10 @@ Public Class Main
         Try
 
             Chart1.Series.Clear()
-        'Chart1.Series.Add("Series1")
-        Chart1.Series.Add(PointChart.SeriesName)
-        Chart1.Series(PointChart.SeriesName).YValuesPerPoint = 1
-        Chart1.Series(PointChart.SeriesName).Points.DataBindXY(ds.Tables(0).DefaultView, PointChart.XValuesFieldName, ds.Tables(0).DefaultView, PointChart.YValuesFieldName)
+            'Chart1.Series.Add("Series1")
+            Chart1.Series.Add(PointChart.SeriesName)
+            Chart1.Series(PointChart.SeriesName).YValuesPerPoint = 1
+            Chart1.Series(PointChart.SeriesName).Points.DataBindXY(ds.Tables(0).DefaultView, PointChart.XValuesFieldName, ds.Tables(0).DefaultView, PointChart.YValuesFieldName)
             Chart1.Series(PointChart.SeriesName).ChartType = DataVisualization.Charting.SeriesChartType.Point
 
             'Chart1.Series(PointChart.SeriesName).Points(200).Label = "Test"
@@ -1843,21 +3074,21 @@ Public Class Main
             'Next
 
             If PointChart.EmptyPointValue <> "" Then Chart1.Series(PointChart.SeriesName).SetCustomProperty("EmptyPointValue", PointChart.EmptyPointValue)
-        If PointChart.LabelStyle <> "" Then Chart1.Series(PointChart.SeriesName).SetCustomProperty("LabelStyle", PointChart.LabelStyle)
-        Chart1.Series(PointChart.SeriesName).SetCustomProperty("PixelPointDepth", PointChart.PixelPointDepth)
-        Chart1.Series(PointChart.SeriesName).SetCustomProperty("PixelPointGapDepth", PointChart.PixelPointGapDepth)
+            If PointChart.LabelStyle <> "" Then Chart1.Series(PointChart.SeriesName).SetCustomProperty("LabelStyle", PointChart.LabelStyle)
+            Chart1.Series(PointChart.SeriesName).SetCustomProperty("PixelPointDepth", PointChart.PixelPointDepth)
+            Chart1.Series(PointChart.SeriesName).SetCustomProperty("PixelPointGapDepth", PointChart.PixelPointGapDepth)
 
-        'Specify Y Axis range: -------------------------------------------------------------------------------
-        If PointChart.YAxis.AutoMinimum = True Then
-            Chart1.ChartAreas(0).AxisY.Minimum = [Double].NaN
-        Else
-            Chart1.ChartAreas(0).AxisY.Minimum = PointChart.YAxis.Minimum
-        End If
-        If PointChart.YAxis.AutoMaximum = True Then
-            Chart1.ChartAreas(0).AxisY.Maximum = [Double].NaN
-        Else
-            Chart1.ChartAreas(0).AxisY.Maximum = PointChart.YAxis.Maximum
-        End If
+            'Specify Y Axis range: -------------------------------------------------------------------------------
+            If PointChart.YAxis.AutoMinimum = True Then
+                Chart1.ChartAreas(0).AxisY.Minimum = [Double].NaN
+            Else
+                Chart1.ChartAreas(0).AxisY.Minimum = PointChart.YAxis.Minimum
+            End If
+            If PointChart.YAxis.AutoMaximum = True Then
+                Chart1.ChartAreas(0).AxisY.Maximum = [Double].NaN
+            Else
+                Chart1.ChartAreas(0).AxisY.Maximum = PointChart.YAxis.Maximum
+            End If
 
             'Chart1.ChartAreas(0).AxisY.MajorGrid.Interval = 5 'Set the grid interval 
             'Chart1.ChartAreas(0).AxisY.Interval = 5 'Set the annotation interval
@@ -1882,12 +3113,22 @@ Public Class Main
                 Chart1.ChartAreas(0).AxisY.MajorGrid.Interval = PointChart.YAxis.MajorGridInterval
             End If
 
+            Chart1.ChartAreas(0).AxisY.LineWidth = 2 'Increase the line width of the Y Axis.
+            'Chart1.ChartAreas(0).AxisY(0).LineWidth = 2
+            'Chart1.ChartAreas(0).AxisY("0").Line = 2
+            'Chart1.ChartAreas(0).AxisY.CustomLabels.
+            Chart1.ChartAreas(0).AxisY.Crossing = 0
+
+            'Add a bold origin axis line:
+            'Dim am1 As New Charting.
+
+
             'Specify X Axis range: ------------------------------------------------------------------------------
             If PointChart.XAxis.AutoMinimum = True Then
-            Chart1.ChartAreas(0).AxisX.Minimum = [Double].NaN
-        Else
-            Chart1.ChartAreas(0).AxisX.Minimum = PointChart.XAxis.Minimum
-        End If
+                Chart1.ChartAreas(0).AxisX.Minimum = [Double].NaN
+            Else
+                Chart1.ChartAreas(0).AxisX.Minimum = PointChart.XAxis.Minimum
+            End If
             If PointChart.XAxis.AutoMaximum = True Then
                 Chart1.ChartAreas(0).AxisX.Maximum = [Double].NaN
             Else
@@ -1895,6 +3136,8 @@ Public Class Main
             End If
 
             'Specify X Axis annotation and major grid intervals: -----------------------------------------------------
+            Chart1.ChartAreas(0).AxisX.IntervalType = Charting.DateTimeIntervalType.Auto
+
             If PointChart.XAxis.AutoInterval = True Then
                 Chart1.ChartAreas(0).AxisX.Interval = 0
             Else
@@ -1908,68 +3151,71 @@ Public Class Main
                 Chart1.ChartAreas(0).AxisX.MajorGrid.Interval = PointChart.XAxis.MajorGridInterval
             End If
 
+            Chart1.ChartAreas(0).AxisX.LineWidth = 2 'Increase the line width of the X Axis.
+            Chart1.ChartAreas(0).AxisX.Crossing = 0
+
             'Specify X Axis label: ------------------------------------------------------------------------------------
             Chart1.ChartAreas(0).AxisX.TitleAlignment = PointChart.XAxis.TitleAlignment
 
-        Dim myFontStyle As FontStyle = FontStyle.Regular
-        If PointChart.XAxis.Title.Bold Then
-            myFontStyle = myFontStyle Or FontStyle.Bold
-        End If
-        If PointChart.XAxis.Title.Italic Then
-            myFontStyle = myFontStyle Or FontStyle.Italic
-        End If
-        If PointChart.XAxis.Title.Strikeout Then
-            myFontStyle = myFontStyle Or FontStyle.Strikeout
-        End If
-        If PointChart.XAxis.Title.Underline Then
-            myFontStyle = myFontStyle Or FontStyle.Underline
-        End If
+            Dim myFontStyle As FontStyle = FontStyle.Regular
+            If PointChart.XAxis.Title.Bold Then
+                myFontStyle = myFontStyle Or FontStyle.Bold
+            End If
+            If PointChart.XAxis.Title.Italic Then
+                myFontStyle = myFontStyle Or FontStyle.Italic
+            End If
+            If PointChart.XAxis.Title.Strikeout Then
+                myFontStyle = myFontStyle Or FontStyle.Strikeout
+            End If
+            If PointChart.XAxis.Title.Underline Then
+                myFontStyle = myFontStyle Or FontStyle.Underline
+            End If
 
-        Chart1.ChartAreas(0).AxisX.TitleFont = New Font("Arial", PointChart.XAxis.Title.Size, myFontStyle)
-        Chart1.ChartAreas(0).AxisX.Title = PointChart.XAxis.Title.Text
+            Chart1.ChartAreas(0).AxisX.TitleFont = New Font("Arial", PointChart.XAxis.Title.Size, myFontStyle)
+            Chart1.ChartAreas(0).AxisX.Title = PointChart.XAxis.Title.Text
 
-        'Specify Y Axis label: ------------------------------------------------------------------------------------
-        Chart1.ChartAreas(0).AxisY.TitleAlignment = PointChart.YAxis.TitleAlignment
-        myFontStyle = FontStyle.Regular
-        If PointChart.YAxis.Title.Bold Then
-            myFontStyle = myFontStyle Or FontStyle.Bold
-        End If
-        If PointChart.YAxis.Title.Italic Then
-            myFontStyle = myFontStyle Or FontStyle.Italic
-        End If
-        If PointChart.YAxis.Title.Strikeout Then
-            myFontStyle = myFontStyle Or FontStyle.Strikeout
-        End If
-        If PointChart.YAxis.Title.Underline Then
-            myFontStyle = myFontStyle Or FontStyle.Underline
-        End If
+            'Specify Y Axis label: ------------------------------------------------------------------------------------
+            Chart1.ChartAreas(0).AxisY.TitleAlignment = PointChart.YAxis.TitleAlignment
+            myFontStyle = FontStyle.Regular
+            If PointChart.YAxis.Title.Bold Then
+                myFontStyle = myFontStyle Or FontStyle.Bold
+            End If
+            If PointChart.YAxis.Title.Italic Then
+                myFontStyle = myFontStyle Or FontStyle.Italic
+            End If
+            If PointChart.YAxis.Title.Strikeout Then
+                myFontStyle = myFontStyle Or FontStyle.Strikeout
+            End If
+            If PointChart.YAxis.Title.Underline Then
+                myFontStyle = myFontStyle Or FontStyle.Underline
+            End If
 
-        Chart1.ChartAreas(0).AxisY.TitleFont = New Font("Arial", PointChart.YAxis.Title.Size, myFontStyle)
-        Chart1.ChartAreas(0).AxisY.Title = PointChart.YAxis.Title.Text
+            Chart1.ChartAreas(0).AxisY.TitleFont = New Font("Arial", PointChart.YAxis.Title.Size, myFontStyle)
+            Chart1.ChartAreas(0).AxisY.Title = PointChart.YAxis.Title.Text
 
-        'Draw Chart Label:
-        'Check if "Label1" is already in the list of titles:
-        If Chart1.Titles.IndexOf("Label1") = -1 Then 'Label "Label1" doesnt exist
-            Chart1.Titles.Add("Label1").Name = "Label1" 'The name needs to be explicitly declared!
-        End If
+            'Draw Chart Label:
+            'Check if "Label1" is already in the list of titles:
+            If Chart1.Titles.IndexOf("Label1") = -1 Then 'Label "Label1" doesnt exist
+                Chart1.Titles.Add("Label1").Name = "Label1" 'The name needs to be explicitly declared!
+            End If
 
-        Chart1.Titles("Label1").Text = PointChart.ChartLabel.Text
+            Chart1.Titles("Label1").Text = PointChart.ChartLabel.Text
 
-        Dim myFontStyle2 As FontStyle = FontStyle.Regular
-        If PointChart.ChartLabel.Bold Then
-            myFontStyle2 = myFontStyle2 Or FontStyle.Bold
-        End If
-        If PointChart.ChartLabel.Italic Then
-            myFontStyle2 = myFontStyle2 Or FontStyle.Italic
-        End If
-        If PointChart.ChartLabel.Strikeout Then
-            myFontStyle2 = myFontStyle2 Or FontStyle.Strikeout
-        End If
-        If PointChart.ChartLabel.Underline Then
-            myFontStyle2 = myFontStyle2 Or FontStyle.Underline
-        End If
+            Dim myFontStyle2 As FontStyle = FontStyle.Regular
+            If PointChart.ChartLabel.Bold Then
+                myFontStyle2 = myFontStyle2 Or FontStyle.Bold
+            End If
+            If PointChart.ChartLabel.Italic Then
+                myFontStyle2 = myFontStyle2 Or FontStyle.Italic
+            End If
+            If PointChart.ChartLabel.Strikeout Then
+                myFontStyle2 = myFontStyle2 Or FontStyle.Strikeout
+            End If
+            If PointChart.ChartLabel.Underline Then
+                myFontStyle2 = myFontStyle2 Or FontStyle.Underline
+            End If
 
-        Chart1.Titles("Label1").Font = New Font("Arial", PointChart.ChartLabel.Size, myFontStyle2)
+            Chart1.Titles("Label1").Font = New Font("Arial", PointChart.ChartLabel.Size, myFontStyle2)
             Chart1.Titles("Label1").Alignment = PointChart.ChartLabel.Alignment
 
             'Chart1.
@@ -1980,20 +3226,20 @@ Public Class Main
             'Display selected chart information:
             Message.Add(vbCrLf & "Main.Chart1.ChartAreas.Count: " & Chart1.ChartAreas.Count & vbCrLf) '1
             Message.Add("Main.Chart1.ChartAreas(0).Name: " & Chart1.ChartAreas(0).Name & vbCrLf) 'ChartArea1
-        Message.Add("Main.Chart1.ChartAreas(0).AxisX.Minimum: " & Chart1.ChartAreas(0).AxisX.Minimum & vbCrLf) '0
-        Message.Add("Main.Chart1.ChartAreas(0).AxisX.Maximum: " & Chart1.ChartAreas(0).AxisX.Maximum & vbCrLf) '1
-        Message.Add("Main.Chart1.ChartAreas(0).AxisY.Minimum: " & Chart1.ChartAreas(0).AxisY.Minimum & vbCrLf) 'NaN
-        Message.Add("Main.Chart1.ChartAreas(0).AxisY.Maximum: " & Chart1.ChartAreas(0).AxisY.Maximum & vbCrLf) 'NaN
-        Message.Add("Main.Chart1.Series(0).Name: " & Chart1.Series(0).Name & vbCrLf) 'Series1
-        Message.Add("Main.Chart1.Series(0).Legend: " & Chart1.Series(0).Legend & vbCrLf) 'Legend1
-        Message.Add("Main.Chart1.Series(0).YValueType: " & Chart1.Series(0).YValueType & vbCrLf) '2
-        'Main.MessageAdd( "Main.Chart1.Series(0).AxisLabel(0): " & Main.Chart1.Series(0).AxisLabel(0) & vbCrLf) 'Index out of range
-        'Main.MessageAdd( "Main.Chart1.Series(0).AxisLabel(1): " & Main.Chart1.Series(0).AxisLabel(1) & vbCrLf) 'Index out of range
-        Message.Add("Main.Chart1.ChartAreas(0).AxisY2.Minimum: " & Chart1.ChartAreas(0).AxisY2.Minimum & vbCrLf) 'NaN unless specified prior
-        Message.Add("Main.Chart1.ChartAreas(0).AxisY2.Maximum: " & Chart1.ChartAreas(0).AxisY2.Maximum & vbCrLf) 'NaN unless specified prior
-        Message.Add("Main.Chart1.ChartAreas(0).AxisY.AxisName: " & Chart1.ChartAreas(0).AxisY.AxisName & vbCrLf) '1
-        Message.Add("Main.Chart1.ChartAreas(0).AxisX.MajorGrid.Interval: " & Chart1.ChartAreas(0).AxisX.MajorGrid.Interval & vbCrLf) '1
-        Message.Add("Main.Chart1.ChartAreas(0).AxisY.MajorGrid.Interval: " & Chart1.ChartAreas(0).AxisY.MajorGrid.Interval & vbCrLf) 'NaN unless specified prior
+            Message.Add("Main.Chart1.ChartAreas(0).AxisX.Minimum: " & Chart1.ChartAreas(0).AxisX.Minimum & vbCrLf) '0
+            Message.Add("Main.Chart1.ChartAreas(0).AxisX.Maximum: " & Chart1.ChartAreas(0).AxisX.Maximum & vbCrLf) '1
+            Message.Add("Main.Chart1.ChartAreas(0).AxisY.Minimum: " & Chart1.ChartAreas(0).AxisY.Minimum & vbCrLf) 'NaN
+            Message.Add("Main.Chart1.ChartAreas(0).AxisY.Maximum: " & Chart1.ChartAreas(0).AxisY.Maximum & vbCrLf) 'NaN
+            Message.Add("Main.Chart1.Series(0).Name: " & Chart1.Series(0).Name & vbCrLf) 'Series1
+            Message.Add("Main.Chart1.Series(0).Legend: " & Chart1.Series(0).Legend & vbCrLf) 'Legend1
+            Message.Add("Main.Chart1.Series(0).YValueType: " & Chart1.Series(0).YValueType & vbCrLf) '2
+            'Main.MessageAdd( "Main.Chart1.Series(0).AxisLabel(0): " & Main.Chart1.Series(0).AxisLabel(0) & vbCrLf) 'Index out of range
+            'Main.MessageAdd( "Main.Chart1.Series(0).AxisLabel(1): " & Main.Chart1.Series(0).AxisLabel(1) & vbCrLf) 'Index out of range
+            Message.Add("Main.Chart1.ChartAreas(0).AxisY2.Minimum: " & Chart1.ChartAreas(0).AxisY2.Minimum & vbCrLf) 'NaN unless specified prior
+            Message.Add("Main.Chart1.ChartAreas(0).AxisY2.Maximum: " & Chart1.ChartAreas(0).AxisY2.Maximum & vbCrLf) 'NaN unless specified prior
+            Message.Add("Main.Chart1.ChartAreas(0).AxisY.AxisName: " & Chart1.ChartAreas(0).AxisY.AxisName & vbCrLf) '1
+            Message.Add("Main.Chart1.ChartAreas(0).AxisX.MajorGrid.Interval: " & Chart1.ChartAreas(0).AxisX.MajorGrid.Interval & vbCrLf) '1
+            Message.Add("Main.Chart1.ChartAreas(0).AxisY.MajorGrid.Interval: " & Chart1.ChartAreas(0).AxisY.MajorGrid.Interval & vbCrLf) 'NaN unless specified prior
 
 
         Catch ex As Exception
@@ -2647,81 +3893,7 @@ Public Class Main
         End Select
     End Sub
 
-    'Set up the settings forms for the chart type selected.
-    Public Sub SetUpChartForm()
-        Select Case ChartType
-            Case Charting.SeriesChartType.Area
 
-            Case Charting.SeriesChartType.Bar
-
-            Case Charting.SeriesChartType.BoxPlot
-
-            Case Charting.SeriesChartType.Bubble
-
-            Case Charting.SeriesChartType.Candlestick
-
-            Case Charting.SeriesChartType.Column
-
-            Case Charting.SeriesChartType.Doughnut
-
-            Case Charting.SeriesChartType.ErrorBar
-
-            Case Charting.SeriesChartType.FastLine
-
-            Case Charting.SeriesChartType.FastPoint
-
-            Case Charting.SeriesChartType.Funnel
-
-            Case Charting.SeriesChartType.Kagi
-
-            Case Charting.SeriesChartType.Line
-
-            Case Charting.SeriesChartType.Pie
-
-            Case Charting.SeriesChartType.Point
-                SetUpPointChartForm()
-            Case Charting.SeriesChartType.PointAndFigure
-
-            Case Charting.SeriesChartType.Polar
-
-            Case Charting.SeriesChartType.Pyramid
-
-            Case Charting.SeriesChartType.Radar
-
-            Case Charting.SeriesChartType.Range
-
-            Case Charting.SeriesChartType.RangeBar
-
-            Case Charting.SeriesChartType.RangeColumn
-
-            Case Charting.SeriesChartType.Renko
-
-            Case Charting.SeriesChartType.Spline
-
-            Case Charting.SeriesChartType.SplineArea
-
-            Case Charting.SeriesChartType.SplineRange
-
-            Case Charting.SeriesChartType.StackedArea
-
-            Case Charting.SeriesChartType.StackedArea100
-
-            Case Charting.SeriesChartType.StackedBar
-
-            Case Charting.SeriesChartType.StackedBar100
-
-            Case Charting.SeriesChartType.StackedColumn
-
-            Case Charting.SeriesChartType.StackedColumn100
-
-            Case Charting.SeriesChartType.StepLine
-
-            Case Charting.SeriesChartType.Stock
-                SetUpStockChartForm()
-            Case Charting.SeriesChartType.ThreeLineBreak
-
-        End Select
-    End Sub
 
     'Update the form with the current chart settings.
     Public Sub UpdateChartForm()
@@ -3108,82 +4280,70 @@ Public Class Main
 
     'Open a chart.
     Private Sub btnOpen_Click(sender As Object, e As EventArgs) Handles btnOpen.Click
-        Select Case ChartType
-            Case Charting.SeriesChartType.Area
+        'Open a chart.
 
-            Case Charting.SeriesChartType.Bar
-
-            Case Charting.SeriesChartType.BoxPlot
-
-            Case Charting.SeriesChartType.Bubble
-
-            Case Charting.SeriesChartType.Candlestick
-
-            Case Charting.SeriesChartType.Column
-
-            Case Charting.SeriesChartType.Doughnut
-
-            Case Charting.SeriesChartType.ErrorBar
-
-            Case Charting.SeriesChartType.FastLine
-
-            Case Charting.SeriesChartType.FastPoint
-
-            Case Charting.SeriesChartType.Funnel
-
-            Case Charting.SeriesChartType.Kagi
-
-            Case Charting.SeriesChartType.Line
-
-            Case Charting.SeriesChartType.Pie
-
-            Case Charting.SeriesChartType.Point
-                OpenPointChart()
-                UpdatePointChartForm()
-                UpdateLastUsedChart("Point", PointChart.FileName)
-            Case Charting.SeriesChartType.PointAndFigure
-
-            Case Charting.SeriesChartType.Polar
-
-            Case Charting.SeriesChartType.Pyramid
-
-            Case Charting.SeriesChartType.Radar
-
-            Case Charting.SeriesChartType.Range
-
-            Case Charting.SeriesChartType.RangeBar
-
-            Case Charting.SeriesChartType.RangeColumn
-
-            Case Charting.SeriesChartType.Renko
-
-            Case Charting.SeriesChartType.Spline
-
-            Case Charting.SeriesChartType.SplineArea
-
-            Case Charting.SeriesChartType.SplineRange
-
-            Case Charting.SeriesChartType.StackedArea
-
-            Case Charting.SeriesChartType.StackedArea100
-
-            Case Charting.SeriesChartType.StackedBar
-
-            Case Charting.SeriesChartType.StackedBar100
-
-            Case Charting.SeriesChartType.StackedColumn
-
-            Case Charting.SeriesChartType.StackedColumn100
-
-            Case Charting.SeriesChartType.StepLine
-
-            Case Charting.SeriesChartType.Stock
-                OpenStockChart()
-                UpdateStockChartForm()
-                UpdateLastUsedChart("Stock", StockChart.FileName)
-            Case Charting.SeriesChartType.ThreeLineBreak
-
+        'Find and open a chart file.
+        Select Case Project.DataLocn.Type
+            Case ADVL_Utilities_Library_1.FileLocation.Types.Directory
+                'Select a Stock Chart file from the project directory:
+                OpenFileDialog1.InitialDirectory = Project.DataLocn.Path
+                'OpenFileDialog1.Filter = "Point Chart | *.PointChart"
+                OpenFileDialog1.Filter = "Chart files | *.PointChart; *.StockChart"
+                If OpenFileDialog1.ShowDialog() = DialogResult.OK Then
+                    Dim FileName As String = System.IO.Path.GetFileName(OpenFileDialog1.FileName)
+                    txtChartFileName.Text = FileName
+                    'PointChart.LoadFile(FileName)
+                    OpenChart(FileName)
+                End If
+            Case ADVL_Utilities_Library_1.FileLocation.Types.Archive
+                'Select a Point Chart file from the project archive:
+                'Show the zip archive file selection form:
+                Zip = New ADVL_Utilities_Library_1.ZipComp
+                Zip.ArchivePath = Project.DataLocn.Path
+                Zip.SelectFile() 'Show the Select File form
+                Zip.SelectFileForm.ApplicationName = Project.ApplicationName
+                Zip.SelectFileForm.SettingsLocn = Project.SettingsLocn
+                Zip.SelectFileForm.Show()
+                Zip.SelectFileForm.RestoreFormSettings()
+                'Zip.SelectFileForm.FileExtension = ".PointChart"
+                Zip.SelectFileForm.FileExtensions = {".PointChart", ".StockChart"}
+                Zip.SelectFileForm.GetFileList()
+                If Zip.SelectedFile <> "" Then
+                    'A file has been selected
+                    txtChartFileName.Text = Zip.SelectedFile
+                    'PointChart.LoadFile(Zip.SelectedFile)
+                    OpenChart(Zip.SelectedFile)
+                End If
         End Select
+    End Sub
+
+    Private Sub OpenChart(ByVal ChartFileName As String)
+        If ChartFileName.EndsWith(".PointChart") Then
+            ChartType = Charting.SeriesChartType.Point
+            'SetUpChartForm()
+            SetUpPointChartForm()
+            'UpdateChartForm()
+            'UpdatePointChartForm()
+            PointChart.LoadFile(ChartFileName)
+            PointChart.FileName = ChartFileName
+            UpdatePointChartForm()
+            UpdateLastUsedChart("Point", PointChart.FileName)
+        ElseIf ChartFileName.EndsWith(".StockChart") Then
+            ChartType = Charting.SeriesChartType.Stock
+            'SetUpChartForm()
+            SetUpStockChartForm()
+            'UpdateChartForm()
+            'UpdateStockChartForm()
+            StockChart.LoadFile(ChartFileName)
+            StockChart.FileName = ChartFileName
+            UpdateStockChartForm()
+            UpdateLastUsedChart("Stock", StockChart.FileName)
+        End If
+
+        If chkAutoDraw.Checked Then
+            DrawChart()
+        End If
+
     End Sub
 
     Private Sub Zip_FileSelected(FileName As String) Handles Zip.FileSelected
@@ -3441,80 +4601,7 @@ Public Class Main
 
     Private Sub btnDrawChart_Click(sender As Object, e As EventArgs) Handles btnDrawChart.Click
         'Apply the chart settings - this updates the chart display.
-
-        Select Case ChartType
-            Case Charting.SeriesChartType.Area
-
-            Case Charting.SeriesChartType.Bar
-
-            Case Charting.SeriesChartType.BoxPlot
-
-            Case Charting.SeriesChartType.Bubble
-
-            Case Charting.SeriesChartType.Candlestick
-
-            Case Charting.SeriesChartType.Column
-
-            Case Charting.SeriesChartType.Doughnut
-
-            Case Charting.SeriesChartType.ErrorBar
-
-            Case Charting.SeriesChartType.FastLine
-
-            Case Charting.SeriesChartType.FastPoint
-
-            Case Charting.SeriesChartType.Funnel
-
-            Case Charting.SeriesChartType.Kagi
-
-            Case Charting.SeriesChartType.Line
-
-            Case Charting.SeriesChartType.Pie
-
-            Case Charting.SeriesChartType.Point
-                DrawPointChart()
-            Case Charting.SeriesChartType.PointAndFigure
-
-            Case Charting.SeriesChartType.Polar
-
-            Case Charting.SeriesChartType.Pyramid
-
-            Case Charting.SeriesChartType.Radar
-
-            Case Charting.SeriesChartType.Range
-
-            Case Charting.SeriesChartType.RangeBar
-
-            Case Charting.SeriesChartType.RangeColumn
-
-            Case Charting.SeriesChartType.Renko
-
-            Case Charting.SeriesChartType.Spline
-
-            Case Charting.SeriesChartType.SplineArea
-
-            Case Charting.SeriesChartType.SplineRange
-
-            Case Charting.SeriesChartType.StackedArea
-
-            Case Charting.SeriesChartType.StackedArea100
-
-            Case Charting.SeriesChartType.StackedBar
-
-            Case Charting.SeriesChartType.StackedBar100
-
-            Case Charting.SeriesChartType.StackedColumn
-
-            Case Charting.SeriesChartType.StackedColumn100
-
-            Case Charting.SeriesChartType.StepLine
-
-            Case Charting.SeriesChartType.Stock
-                DrawStockChart()
-            Case Charting.SeriesChartType.ThreeLineBreak
-
-        End Select
-
+        DrawChart()
     End Sub
 
     Private Sub UpdateChartQuery()
@@ -3686,6 +4773,21 @@ Public Class Main
 
         RestoreFormSettings()
         Project.ReadProjectInfoFile()
+
+        'ADDED 2Feb19:
+        Project.ReadParameters()
+        Project.ReadParentParameters()
+        If Project.ParentParameterExists("AppNetName") Then
+            'Project.Parameter("AppNetName") = Project.ParentParameter("AppNetName")
+            Project.AddParameter("AppNetName", Project.ParentParameter("AppNetName").Value, Project.ParentParameter("AppNetName").Description) 'AddParameter will update the parameter if it already exists.
+            AppNetName = Project.Parameter("AppNetName").Value
+        Else
+            'AppNetName = ""
+            AppNetName = Project.GetParameter("AppNetName")
+        End If
+
+        Project.LockProject() 'Lock the project while it is open in this application.
+
         Project.Usage.StartTime = Now
 
         ApplicationInfo.SettingsLocn = Project.SettingsLocn
@@ -3732,46 +4834,69 @@ Public Class Main
 #Region " Online/Offline Code"
 
     Private Sub btnOnline_Click(sender As Object, e As EventArgs) Handles btnOnline.Click
-        'Connect to or disconnect from the Application Network.
-        If ConnectedToAppnet = False Then
-            ConnectToAppNet()
+        'Connect to or disconnect from the Message System (ComNet).
+        If ConnectedToComNet = False Then
+            ConnectToComNet()
         Else
-            DisconnectFromAppNet()
+            DisconnectFromComNet()
         End If
     End Sub
 
-    Private Sub ConnectToAppNet()
-        'Connect to the Application Network. (Message Exchange)
+    Private Sub ConnectToComNet()
+        'Connect to the Message System. (ComNet)
 
-        Dim Result As Boolean
+        'Dim Result As Boolean
 
         If IsNothing(client) Then
             client = New ServiceReference1.MsgServiceClient(New System.ServiceModel.InstanceContext(New MsgServiceCallback))
         End If
 
+        If ComNetRunning() Then
+            'The Message Service is Running.
+        Else 'The Message Service is NOT running'
+            'Start the Message Service:
+            If System.IO.File.Exists(MsgServiceExePath) Then 'OK to start the Message Service application:
+                Shell(Chr(34) & MsgServiceExePath & Chr(34), AppWinStyle.NormalFocus) 'Start Message Service application with no argument
+            Else
+                'Incorrect Message Service Executable path.
+            End If
+        End If
+
+
+
         If client.State = ServiceModel.CommunicationState.Faulted Then
-            Message.SetWarningStyle()
-            Message.Add("client state is faulted. Connection not made!" & vbCrLf)
+            Message.AddWarning("Client state is faulted. Connection not made!" & vbCrLf)
         Else
             Try
-                client.Endpoint.Binding.SendTimeout = New System.TimeSpan(0, 0, 8) 'Temporarily set the send timeaout to 8 seconds
+                'client.Endpoint.Binding.SendTimeout = New System.TimeSpan(0, 0, 8) 'Temporarily set the send timeaout to 8 seconds
+                client.Endpoint.Binding.SendTimeout = New System.TimeSpan(0, 0, 16) 'Temporarily set the send timeaout to 16 seconds
 
-                Result = client.Connect(ApplicationInfo.Name, ServiceReference1.clsConnectionAppTypes.Application, False, False) 'Application Name is "Application_Template"
+                'Result = client.Connect(ApplicationInfo.Name, ServiceReference1.clsConnectionAppTypes.Application, False, False) 'Application Name is "Application_Template"
                 'appName, appType, getAllWarnings, getAllMessages
+                ConnectionName = ApplicationInfo.Name 'This name will be modified if it is already used in an existing connection.
+                'ConnectionName = client.Connect(ApplicationInfo.Name, ConnectionName, Project.Name, Project.Description, Project.SettingsLocn.Type, Project.SettingsLocn.Path, ServiceReference1.clsConnectionAppTypes.Application, False, False)
+                ConnectionName = client.Connect(AppNetName, ApplicationInfo.Name, ConnectionName, Project.Name, Project.Description, Project.Type, Project.Path, False, False) 'UPDATED 2Feb19
 
-                If Result = True Then
-                    Message.Add("Connected to the Application Network as " & ApplicationInfo.Name & vbCrLf)
+
+                If ConnectionName <> "" Then
+                    'Message.Add("Connected to the Application Network as " & ApplicationInfo.Name & vbCrLf)
+                    'Message.Add("Connected to the Application Network as " & ConnectionName & vbCrLf)
+                    Message.Add("Connected to the Communication Network as " & ConnectionName & vbCrLf)
                     client.Endpoint.Binding.SendTimeout = New System.TimeSpan(1, 0, 0) 'Restore the send timeaout to 1 hour
                     btnOnline.Text = "Online"
                     btnOnline.ForeColor = Color.ForestGreen
-                    ConnectedToAppnet = True
+                    'ConnectedToAppnet = True
+                    ConnectedToComNet = True
                     SendApplicationInfo()
+                    client.GetMessageServiceAppInfoAsync() 'Update the Exe Path in case it has changed. This path may be needed in the future to start the ComNet (Message Service).
                 Else
-                    Message.Add("Connection to the Application Network failed!" & vbCrLf)
+                    'Message.Add("Connection to the Application Network failed!" & vbCrLf)
+                    Message.Add("Connection to the Communication Network failed!" & vbCrLf)
                     client.Endpoint.Binding.SendTimeout = New System.TimeSpan(1, 0, 0) 'Restore the send timeaout to 1 hour
                 End If
             Catch ex As System.TimeoutException
-                Message.Add("Timeout error. Check if the Application Network is running." & vbCrLf)
+                'Message.Add("Timeout error. Check if the Application Network is running." & vbCrLf)
+                Message.Add("Timeout error. Check if the Communication Network (Message Service) is running." & vbCrLf)
             Catch ex As Exception
                 Message.Add("Error message: " & ex.Message & vbCrLf)
                 client.Endpoint.Binding.SendTimeout = New System.TimeSpan(1, 0, 0) 'Restore the send timeaout to 1 hour
@@ -3780,30 +4905,98 @@ Public Class Main
 
     End Sub
 
-    Private Sub DisconnectFromAppNet()
-        'Disconnect from the Application Network.
+    Private Sub ConnectToComNet(ByVal ConnName As String)
+        'Connect to the Communication Network with the connection name ConnName.
 
-        Dim Result As Boolean
+        If ConnectedToComNet = False Then
+            Dim Result As Boolean
 
-        If IsNothing(client) Then
-            Message.Add("Already disconnected from the Application Network." & vbCrLf)
-            btnOnline.Text = "Offline"
-            btnOnline.ForeColor = Color.Red
-            ConnectedToAppnet = False
-        Else
+            If IsNothing(client) Then
+                client = New ServiceReference1.MsgServiceClient(New System.ServiceModel.InstanceContext(New MsgServiceCallback))
+            End If
+
             If client.State = ServiceModel.CommunicationState.Faulted Then
-                Message.Add("client state is faulted." & vbCrLf)
+                Message.AddWarning("client state is faulted. Connection not made!" & vbCrLf)
             Else
                 Try
-                    Message.Add("Running client.Disconnect(ApplicationName)   ApplicationName = " & ApplicationInfo.Name & vbCrLf)
-                    client.Disconnect(ApplicationInfo.Name) 'NOTE: If Application Network has closed, this application freezes at this line! Try Catch EndTry added to fix this.
+                    'client.Endpoint.Binding.SendTimeout = New System.TimeSpan(0, 0, 8) 'Temporarily set the send timeaout to 8 seconds
+                    client.Endpoint.Binding.SendTimeout = New System.TimeSpan(0, 0, 16) 'Temporarily set the send timeaout to 16 seconds
+                    'ConnectionName = ApplicationInfo.Name 'This name will be modified if it is already used in an existing connection.
+                    ConnectionName = ConnName 'This name will be modified if it is already used in an existing connection.
+                    'ConnectionName = client.Connect(ApplicationInfo.Name, ConnectionName, Project.Name, Project.DataLocn.Path, ServiceReference1.clsConnectionAppTypes.Application, False, False)
+                    'ConnectionName = client.Connect(ApplicationInfo.Name, ConnectionName, Project.Name, Project.Description, Project.SettingsLocn.Type, Project.SettingsLocn.Path, ServiceReference1.clsConnectionAppTypes.Application, False, False)
+                    ConnectionName = client.Connect(AppNetName, ApplicationInfo.Name, ConnectionName, Project.Name, Project.Description, Project.Type, Project.Path, False, False) 'UPDATED 2Feb19
+
+
+                    If ConnectionName <> "" Then
+                        'Message.Add("Connected to the Application Network as " & ConnectionName & vbCrLf)
+                        Message.Add("Connected to the Communication Network as " & ConnectionName & vbCrLf)
+                        client.Endpoint.Binding.SendTimeout = New System.TimeSpan(1, 0, 0) 'Restore the send timeaout to 1 hour
+                        btnOnline.Text = "Online"
+                        btnOnline.ForeColor = Color.ForestGreen
+                        'ConnectedToAppnet = True
+                        ConnectedToComNet = True
+                        SendApplicationInfo()
+                        client.GetMessageServiceAppInfoAsync() 'Update the Exe Path in case it has changed. This path may be needed in the future to start the ComNet (Message Service).
+                    Else
+                        'Message.Add("Connection to the Application Network failed!" & vbCrLf)
+                        Message.Add("Connection to the Communication Network failed!" & vbCrLf)
+                        client.Endpoint.Binding.SendTimeout = New System.TimeSpan(1, 0, 0) 'Restore the send timeaout to 1 hour
+                    End If
+                Catch ex As System.TimeoutException
+                    'Message.Add("Timeout error. Check if the Application Network is running." & vbCrLf)
+                    Message.Add("Timeout error. Check if the Communication Network is running." & vbCrLf)
+                Catch ex As Exception
+                    Message.Add("Error message: " & ex.Message & vbCrLf)
+                    client.Endpoint.Binding.SendTimeout = New System.TimeSpan(1, 0, 0) 'Restore the send timeaout to 1 hour
+                End Try
+            End If
+        Else
+            'Message.AddWarning("Already connected to the Application Network." & vbCrLf)
+            Message.AddWarning("Already connected to the Communication Network." & vbCrLf)
+        End If
+
+    End Sub
+
+    'Private Sub DisconnectFromAppNet()
+    Private Sub DisconnectFromComNet()
+        'Disconnect from the Communication Network.
+
+        'Dim Result As Boolean
+        If ConnectedToComNet = True Then
+            If ConnectedToComNet = True Then
+                If IsNothing(client) Then
+                    'Message.Add("Already disconnected from the Application Network." & vbCrLf)
+                    Message.Add("Already disconnected from the Communication Network." & vbCrLf)
                     btnOnline.Text = "Offline"
                     btnOnline.ForeColor = Color.Red
-                    ConnectedToAppnet = False
-                Catch ex As Exception
-                    Message.SetWarningStyle()
-                    Message.Add("Error disconnecting from Application Network: " & ex.Message & vbCrLf)
-                End Try
+                    'ConnectedToAppnet = False
+                    ConnectedToComNet = False
+                    ConnectionName = ""
+                Else
+                    If client.State = ServiceModel.CommunicationState.Faulted Then
+                        Message.Add("client state is faulted." & vbCrLf)
+                        ConnectionName = ""
+                    Else
+                        Try
+                            'Message.Add("Running client.Disconnect(ApplicationName)   ApplicationName = " & ApplicationInfo.Name & vbCrLf)
+                            'client.Disconnect(ApplicationInfo.Name) 'NOTE: If Application Network has closed, this application freezes at this line! Try Catch EndTry added to fix this.
+                            'client.Disconnect(ApplicationInfo.Name)
+                            client.Disconnect(AppNetName, ConnectionName) 'UPDATED 2Feb19
+                            btnOnline.Text = "Offline"
+                            btnOnline.ForeColor = Color.Red
+                            'ConnectedToAppnet = False
+                            ConnectedToComNet = False
+                            ConnectionName = ""
+                            'Message.Add("Disconnected from the Application Network." & vbCrLf)
+                            Message.Add("Disconnected from the Communication Network." & vbCrLf)
+                        Catch ex As Exception
+                            'Message.SetWarningStyle()
+                            'Message.Add("Error disconnecting from Application Network: " & ex.Message & vbCrLf)
+                            Message.AddWarning("Error disconnecting from Communication Network: " & ex.Message & vbCrLf)
+                        End Try
+                    End If
+                End If
             End If
         End If
     End Sub
@@ -3815,7 +5008,7 @@ Public Class Main
             Message.Add("No client connection available!" & vbCrLf)
         Else
             If client.State = ServiceModel.CommunicationState.Faulted Then
-                Message.Add("client state is faulted. Message not sent!" & vbCrLf)
+                Message.Add("Client state is faulted. Message not sent!" & vbCrLf)
             Else
                 'Create the XML instructions to send application information.
                 Dim decl As New XDeclaration("1.0", "utf-8", "yes")
@@ -3824,6 +5017,9 @@ Public Class Main
                 Dim applicationInfo As New XElement("ApplicationInfo")
                 Dim name As New XElement("Name", Me.ApplicationInfo.Name)
                 applicationInfo.Add(name)
+
+                Dim text As New XElement("Text", "Charts")
+                applicationInfo.Add(text)
 
                 Dim exePath As New XElement("ExecutablePath", Me.ApplicationInfo.ExecutablePath)
                 applicationInfo.Add(exePath)
@@ -3834,11 +5030,29 @@ Public Class Main
                 applicationInfo.Add(description)
                 xmessage.Add(applicationInfo)
                 doc.Add(xmessage)
-                client.SendMessage("ApplicationNetwork", doc.ToString)
+
+                'Show the message sent to AppNet:
+                'Message.XAddText("Message sent to " & "ApplicationNetwork" & ":" & vbCrLf, "XmlSentNotice")
+                Message.XAddText("Message sent to " & "MessageService" & ":" & vbCrLf, "XmlSentNotice")
+                Message.XAddXml(doc.ToString)
+                Message.XAddText(vbCrLf, "Normal") 'Add extra line
+
+                'client.SendMessage("ApplicationNetwork", doc.ToString)
+                'client.SendMessage("MessageService", doc.ToString)
+                client.SendMessage("", "MessageService", doc.ToString) 'UPDATED 2Feb19
             End If
         End If
 
     End Sub
+
+    Private Function ComNetRunning() As Boolean
+        'Return True if ComNet (Message Service) is running.
+        If System.IO.File.Exists(MsgServiceAppPath & "\Application.Lock") Then
+            Return True
+        Else
+            Return False
+        End If
+    End Function
 
 #End Region 'Online/Offline code
 
@@ -3856,17 +5070,967 @@ Public Class Main
         'Add code here to process the XMessage instructions.
         'See other Andorville™ applciations for examples.
 
+        If IsDBNull(Info) Then
+            Info = ""
+        End If
+
         Select Case Locn
+
+            Case "ClientAppNetName"
+                ClientAppNetName = Info 'The name of the Client Application Network requesting service. ADDED 2Feb19.
+
+            Case "ClientName"
+                ClientAppName = Info 'The name of the Client requesting service.
+
+            Case "ClientConnectionName"
+                ClientConnName = Info 'The name of the client requesting service.
+
+            Case "ClientLocn" 'The Location within the Client requesting service.
+                'TEST: Add Status OK element when the Client Location is changed:
+                Dim statusOK As New XElement("Status", "OK")
+                xlocns(xlocns.Count - 1).Add(statusOK)
+
+                xmessage.Add(xlocns(xlocns.Count - 1)) 'Add the instructions for the last location to the reply xmessage
+                xlocns.Add(New XElement(Info)) 'Start the new location instructions
+
+            Case "Main"
+                 'Blank message - do nothing.
+
+            Case "Main:Status"
+                Select Case Info
+                    Case "OK"
+                        'Main instructions completed OK
+                End Select
+
+            Case "Command"
+                Select Case Info
+                    Case "GetStockChartSettings"
+                        GetStockChartSettingsForClient()
+                    Case "GetPointChartSettings"
+                        GetPointChartSettingsForClient()
+                    'Case "ConnectToAppNet" 'Startup Command
+                    Case "ConnectToComNet" 'Startup Command
+                        'If ConnectedToAppnet = False Then
+                        If ConnectedToComNet = False Then
+                            'ConnectToAppNet()
+                            ConnectToComNet()
+                        End If
+                End Select
+
+         'Stock Chart instructions: --------------------------------------------------------------------------------------------------------------------------------
+
+            Case "StockChartSettings:ChartType"
+                Select Case Info
+                    Case "Stock"
+                        ChartType = Charting.SeriesChartType.Stock
+                        SetUpStockChartForm()
+                End Select
+
+            Case "StockChartSettings:InputData:Type"
+                Select Case Info
+                    Case "Database"
+                        rbDatabase.Checked = True
+                        StockChart.InputDataType = "Database"
+                End Select
+
+            Case "StockChartSettings:InputData:DatabasePath"
+                InputDatabasePath = Info
+                StockChart.InputDatabasePath = Info
+
+            Case "StockChartSettings:InputData:DataDescription"
+                InputDataDescr = Info
+                StockChart.InputDataDescr = Info
+
+            Case "StockChartSettings:InputData:DatabaseQuery"
+                InputQuery = Info
+                StockChart.InputQuery = Info
+
+            Case "StockChartSettings:ChartProperties:XValuesFieldName"
+                StockChart.XValuesFieldName = Info
+
+            Case "StockChartSettings:ChartProperties:SeriesName"
+                StockChart.SeriesName = Info
+
+            Case "StockChartSettings:ChartProperties:YValuesHighFieldName"
+                StockChart.YValuesHighFieldName = Info
+
+            Case "StockChartSettings:ChartProperties:YValuesLowFieldName"
+                StockChart.YValuesLowFieldName = Info
+
+            Case "StockChartSettings:ChartProperties:YValuesOpenFieldName"
+                StockChart.YValuesOpenFieldName = Info
+
+            Case "StockChartSettings:ChartProperties:YValuesCloseFieldName"
+                StockChart.YValuesCloseFieldName = Info
+
+            Case "StockChartSettings:ChartTitle:LabelName"
+                StockChart.ChartLabel.Name = Info
+
+            Case "StockChartSettings:ChartTitle:Text"
+                StockChart.ChartLabel.Text = Info
+
+            Case "StockChartSettings:ChartTitle:FontName"
+                StockChart.ChartLabel.FontName = Info
+
+            Case "StockChartSettings:ChartTitle:Color"
+                StockChart.ChartLabel.Color = Info
+
+            Case "StockChartSettings:ChartTitle:Size"
+                StockChart.ChartLabel.Size = Info
+
+            Case "StockChartSettings:ChartTitle:Bold"
+                StockChart.ChartLabel.Bold = Info
+
+            Case "StockChartSettings:ChartTitle:Italic"
+                StockChart.ChartLabel.Italic = Info
+
+            Case "StockChartSettings:ChartTitle:Underline"
+                StockChart.ChartLabel.Underline = Info
+
+            Case "StockChartSettings:ChartTitle:Strikeout"
+                StockChart.ChartLabel.Strikeout = Info
+
+            Case "StockChartSettings:ChartTitle:Alignment"
+                Select Case Info
+                    Case "BottomCenter"
+                        StockChart.ChartLabel.Alignment = ContentAlignment.BottomCenter
+                    Case "BottomLeft"
+                        StockChart.ChartLabel.Alignment = ContentAlignment.BottomLeft
+                    Case "BottomRight"
+                        StockChart.ChartLabel.Alignment = ContentAlignment.BottomRight
+                    Case "MiddleCenter"
+                        StockChart.ChartLabel.Alignment = ContentAlignment.MiddleCenter
+                    Case "MiddleLeft"
+                        StockChart.ChartLabel.Alignment = ContentAlignment.MiddleLeft
+                    Case "MiddleRight"
+                        StockChart.ChartLabel.Alignment = ContentAlignment.MiddleRight
+                    Case "TopCenter"
+                        StockChart.ChartLabel.Alignment = ContentAlignment.TopCenter
+                    Case "TopLeft"
+                        StockChart.ChartLabel.Alignment = ContentAlignment.TopLeft
+                    Case "TopRight"
+                        StockChart.ChartLabel.Alignment = ContentAlignment.TopRight
+                    Case Else
+                        Message.AddWarning("Unknown Chart Title Alignment: " & Info & vbCrLf)
+                        StockChart.ChartLabel.Alignment = ContentAlignment.TopCenter
+                End Select
+
+            Case "StockChartSettings:XAxis:TitleText"
+                StockChart.XAxis.Title.Text = Info
+
+            Case "StockChartSettings:XAxis:TitleFontName"
+                StockChart.XAxis.Title.FontName = Info
+
+            Case "StockChartSettings:XAxis:TitleColor"
+                StockChart.XAxis.Title.Color = Info
+
+            Case "StockChartSettings:XAxis:TitleSize"
+                StockChart.XAxis.Title.Size = Info
+
+            Case "StockChartSettings:XAxis:TitleBold"
+                StockChart.XAxis.Title.Bold = Info
+
+            Case "StockChartSettings:XAxis:TitleItalic"
+                StockChart.XAxis.Title.Italic = Info
+
+            Case "StockChartSettings:XAxis:TitleUnderline"
+                StockChart.XAxis.Title.Underline = Info
+
+            Case "StockChartSettings:XAxis:TitleStrikeout"
+                StockChart.XAxis.Title.Strikeout = Info
+
+            Case "StockChartSettings:XAxis:TitleAlignment"
+                Select Case Info
+                    Case "Center"
+                        StockChart.XAxis.TitleAlignment = StringAlignment.Center
+                    Case "Far"
+                        StockChart.XAxis.TitleAlignment = StringAlignment.Far
+                    Case "Near"
+                        StockChart.XAxis.TitleAlignment = StringAlignment.Near
+                    Case Else
+                        Message.AddWarning("Unknown Chart X Axis Title Alignment: " & Info & vbCrLf)
+                        StockChart.XAxis.TitleAlignment = StringAlignment.Center
+                End Select
+
+            Case "StockChartSettings:XAxis:AutoMinimum"
+                StockChart.XAxis.AutoMinimum = Info
+
+            Case "StockChartSettings:XAxis:Minimum"
+                StockChart.XAxis.Minimum = Info
+
+            Case "StockChartSettings:XAxis:AutoMaximum"
+                StockChart.XAxis.AutoMaximum = Info
+
+            Case "StockChartSettings:XAxis:Maximum"
+                StockChart.XAxis.Maximum = Info
+
+            Case "StockChartSettings:XAxis:AutoInterval"
+                StockChart.XAxis.AutoInterval = Info
+
+            Case "StockChartSettings:XAxis:MajorGridInterval"
+                StockChart.XAxis.MajorGridInterval = Info
+
+            Case "StockChartSettings:XAxis:AutoMajorGridInterval"
+                StockChart.XAxis.AutoMajorGridInterval = Info
+
+            Case "StockChartSettings:YAxis:TitleText"
+                StockChart.YAxis.Title.Text = Info
+
+            Case "StockChartSettings:YAxis:TitleFontName"
+                StockChart.YAxis.Title.FontName = Info
+
+            Case "StockChartSettings:YAxis:TitleColor"
+                StockChart.YAxis.Title.Color = Info
+
+            Case "StockChartSettings:YAxis:TitleSize"
+                StockChart.YAxis.Title.Size = Info
+
+            Case "StockChartSettings:YAxis:TitleBold"
+                StockChart.YAxis.Title.Bold = Info
+
+            Case "StockChartSettings:YAxis:TitleItalic"
+                StockChart.YAxis.Title.Italic = Info
+
+            Case "StockChartSettings:YAxis:TitleUnderline"
+                StockChart.YAxis.Title.Underline = Info
+
+            Case "StockChartSettings:YAxis:TitleStrikeout"
+                StockChart.YAxis.Title.Strikeout = Info
+
+            Case "StockChartSettings:YAxis:TitleAlignment"
+                'StockChart.YAxis.TitleAlignment = Info
+                Select Case Info
+                    Case "Center"
+                        StockChart.YAxis.TitleAlignment = StringAlignment.Center
+                    Case "Far"
+                        StockChart.YAxis.TitleAlignment = StringAlignment.Far
+                    Case "Near"
+                        StockChart.YAxis.TitleAlignment = StringAlignment.Near
+                    Case Else
+                        Message.AddWarning("Unknown Chart Y Axis Title Alignment: " & Info & vbCrLf)
+                        StockChart.YAxis.TitleAlignment = StringAlignment.Center
+                End Select
+
+            Case "StockChartSettings:YAxis:AutoMinimum"
+                StockChart.YAxis.AutoMinimum = Info
+
+            Case "StockChartSettings:YAxis:Minimum"
+                StockChart.YAxis.Minimum = Info
+
+            Case "StockChartSettings:YAxis:AutoMaximum"
+                StockChart.YAxis.AutoMaximum = Info
+
+            Case "StockChartSettings:YAxis:Maximum"
+                StockChart.YAxis.Maximum = Info
+
+            Case "StockChartSettings:YAxis:AutoInterval"
+                StockChart.YAxis.AutoInterval = Info
+
+            Case "StockChartSettings:YAxis:MajorGridInterval"
+                StockChart.YAxis.MajorGridInterval = Info
+
+            Case "StockChartSettings:YAxis:AutoMajorGridInterval"
+                StockChart.YAxis.AutoMajorGridInterval = Info
+
+            Case "StockChartSettings:Command"
+                Select Case Info
+                    Case "DrawChart"
+                        UpdateStockChartForm()
+                        DrawChart()
+                    Case "ClearChart"
+                        ClearChart()
+                End Select
+
+
+           'Point Chart instructions: --------------------------------------------------------------------------------------------------------------------------------
+
+            Case "PointChartSettings:ChartType"
+                Select Case Info
+                    Case "Point"
+                        ChartType = Charting.SeriesChartType.Point
+                        SetUpPointChartForm()
+                End Select
+
+            Case "PointChartSettings:InputData:Type"
+                Select Case Info
+                    Case "Database"
+                        rbDatabase.Checked = True
+                        PointChart.InputDataType = "Database"
+                End Select
+
+            Case "PointChartSettings:InputData:DatabasePath"
+                InputDatabasePath = Info
+                PointChart.InputDatabasePath = Info
+
+            Case "PointChartSettings:InputData:DataDescription"
+                InputDataDescr = Info
+                PointChart.InputDataDescr = Info
+
+            Case "PointChartSettings:InputData:DatabaseQuery"
+                InputQuery = Info
+                PointChart.InputQuery = Info
+
+            Case "PointChartSettings:ChartProperties:XValuesFieldName"
+                PointChart.XValuesFieldName = Info
+
+            Case "PointChartSettings:ChartProperties:YValuesFieldName"
+                PointChart.YValuesFieldName = Info
+
+            Case "PointChartSettings:ChartProperties:SeriesName"
+                PointChart.SeriesName = Info
+
+            Case "PointChartSettings:ChartTitle:LabelName"
+                PointChart.ChartLabel.Name = Info
+
+            Case "PointChartSettings:ChartTitle:Text"
+                PointChart.ChartLabel.Text = Info
+
+            Case "PointChartSettings:ChartTitle:FontName"
+                PointChart.ChartLabel.FontName = Info
+
+            Case "PointChartSettings:ChartTitle:Color"
+                PointChart.ChartLabel.Color = Info
+
+            Case "PointChartSettings:ChartTitle:Size"
+                PointChart.ChartLabel.Size = Info
+
+            Case "PointChartSettings:ChartTitle:Bold"
+                PointChart.ChartLabel.Bold = Info
+
+            Case "PointChartSettings:ChartTitle:Italic"
+                PointChart.ChartLabel.Italic = Info
+
+            Case "PointChartSettings:ChartTitle:Underline"
+                PointChart.ChartLabel.Underline = Info
+
+            Case "PointChartSettings:ChartTitle:Strikeout"
+                PointChart.ChartLabel.Strikeout = Info
+
+            Case "PointChartSettings:ChartTitle:Alignment"
+                Select Case Info
+                    Case "BottomCenter"
+                        PointChart.ChartLabel.Alignment = ContentAlignment.BottomCenter
+                    Case "BottomLeft"
+                        PointChart.ChartLabel.Alignment = ContentAlignment.BottomLeft
+                    Case "BottomRight"
+                        PointChart.ChartLabel.Alignment = ContentAlignment.BottomRight
+                    Case "MiddleCenter"
+                        PointChart.ChartLabel.Alignment = ContentAlignment.MiddleCenter
+                    Case "MiddleLeft"
+                        PointChart.ChartLabel.Alignment = ContentAlignment.MiddleLeft
+                    Case "MiddleRight"
+                        PointChart.ChartLabel.Alignment = ContentAlignment.MiddleRight
+                    Case "TopCenter"
+                        PointChart.ChartLabel.Alignment = ContentAlignment.TopCenter
+                    Case "TopLeft"
+                        PointChart.ChartLabel.Alignment = ContentAlignment.TopLeft
+                    Case "TopRight"
+                        PointChart.ChartLabel.Alignment = ContentAlignment.TopRight
+                    Case Else
+                        Message.AddWarning("Unknown Chart Title Alignment: " & Info & vbCrLf)
+                        PointChart.ChartLabel.Alignment = ContentAlignment.TopCenter
+                End Select
+
+
+
+
+            Case "PointChartSettings:XAxis:TitleText"
+                PointChart.XAxis.Title.Text = Info
+
+            Case "PointChartSettings:XAxis:TitleFontName"
+                PointChart.XAxis.Title.FontName = Info
+
+            Case "PointChartSettings:XAxis:TitleColor"
+                PointChart.XAxis.Title.Color = Info
+
+            Case "PointChartSettings:XAxis:TitleSize"
+                PointChart.XAxis.Title.Size = Info
+
+            Case "PointChartSettings:XAxis:TitleBold"
+                PointChart.XAxis.Title.Bold = Info
+
+            Case "PointChartSettings:XAxis:TitleItalic"
+                PointChart.XAxis.Title.Italic = Info
+
+            Case "PointChartSettings:XAxis:TitleUnderline"
+                PointChart.XAxis.Title.Underline = Info
+
+            Case "PointChartSettings:XAxis:TitleStrikeout"
+                PointChart.XAxis.Title.Strikeout = Info
+
+            Case "PointChartSettings:XAxis:TitleAlignment"
+                Select Case Info
+                    Case "Center"
+                        PointChart.XAxis.TitleAlignment = StringAlignment.Center
+                    Case "Far"
+                        PointChart.XAxis.TitleAlignment = StringAlignment.Far
+                    Case "Near"
+                        PointChart.XAxis.TitleAlignment = StringAlignment.Near
+                    Case Else
+                        Message.AddWarning("Unknown Chart X Axis Title Alignment: " & Info & vbCrLf)
+                        PointChart.XAxis.TitleAlignment = StringAlignment.Center
+                End Select
+
+            Case "PointChartSettings:XAxis:AutoMinimum"
+                PointChart.XAxis.AutoMinimum = Info
+
+            Case "PointChartSettings:XAxis:Minimum"
+                PointChart.XAxis.Minimum = Info
+
+            Case "PointChartSettings:XAxis:AutoMaximum"
+                PointChart.XAxis.AutoMaximum = Info
+
+            Case "PointChartSettings:XAxis:Maximum"
+                PointChart.XAxis.Maximum = Info
+
+            Case "PointChartSettings:XAxis:AutoInterval"
+                PointChart.XAxis.AutoInterval = Info
+
+            Case "PointChartSettings:XAxis:MajorGridInterval"
+                PointChart.XAxis.MajorGridInterval = Info
+
+            Case "PointChartSettings:XAxis:AutoMajorGridInterval"
+                PointChart.XAxis.AutoMajorGridInterval = Info
+
+            Case "PointChartSettings:YAxis:TitleText"
+                PointChart.YAxis.Title.Text = Info
+
+            Case "PointChartSettings:YAxis:TitleFontName"
+                PointChart.YAxis.Title.FontName = Info
+
+            Case "PointChartSettings:YAxis:TitleColor"
+                PointChart.YAxis.Title.Color = Info
+
+            Case "PointChartSettings:YAxis:TitleSize"
+                PointChart.YAxis.Title.Size = Info
+
+            Case "PointChartSettings:YAxis:TitleBold"
+                PointChart.YAxis.Title.Bold = Info
+
+            Case "PointChartSettings:YAxis:TitleItalic"
+                PointChart.YAxis.Title.Italic = Info
+
+            Case "PointChartSettings:YAxis:TitleUnderline"
+                PointChart.YAxis.Title.Underline = Info
+
+            Case "PointChartSettings:YAxis:TitleStrikeout"
+                PointChart.YAxis.Title.Strikeout = Info
+
+            Case "PointChartSettings:YAxis:TitleAlignment"
+                'StockChart.YAxis.TitleAlignment = Info
+                Select Case Info
+                    Case "Center"
+                        PointChart.YAxis.TitleAlignment = StringAlignment.Center
+                    Case "Far"
+                        PointChart.YAxis.TitleAlignment = StringAlignment.Far
+                    Case "Near"
+                        PointChart.YAxis.TitleAlignment = StringAlignment.Near
+                    Case Else
+                        Message.AddWarning("Unknown Chart Y Axis Title Alignment: " & Info & vbCrLf)
+                        PointChart.YAxis.TitleAlignment = StringAlignment.Center
+                End Select
+
+            Case "PointChartSettings:YAxis:AutoMinimum"
+                PointChart.YAxis.AutoMinimum = Info
+
+            Case "PointChartSettings:YAxis:Minimum"
+                PointChart.YAxis.Minimum = Info
+
+            Case "PointChartSettings:YAxis:AutoMaximum"
+                PointChart.YAxis.AutoMaximum = Info
+
+            Case "PointChartSettings:YAxis:Maximum"
+                PointChart.YAxis.Maximum = Info
+
+            Case "PointChartSettings:YAxis:AutoInterval"
+                PointChart.YAxis.AutoInterval = Info
+
+            Case "PointChartSettings:YAxis:MajorGridInterval"
+                PointChart.YAxis.MajorGridInterval = Info
+
+            Case "PointChartSettings:YAxis:AutoMajorGridInterval"
+                PointChart.YAxis.AutoMajorGridInterval = Info
+
+
+
+
+
+            Case "PointChartSettings:Command"
+                Select Case Info
+                    Case "DrawChart"
+                        UpdatePointChartForm()
+                        DrawChart()
+                    Case "ClearChart"
+                        ClearChart()
+                End Select
+
+
+
+            'Startup Command Arguments ================================================
+            Case "ProjectName"
+                If Project.OpenProject(Info) = True Then
+                    ProjectSelected = True 'Project has been opened OK.
+                Else
+                    ProjectSelected = False 'Project could not be opened.
+                End If
+
+            Case "ProjectID"
+                Message.AddWarning("Add code to handle ProjectID parameter at StartUp!" & vbCrLf)
+                'Note the AppNet will usually select a project using ProjectPath.
+
+            Case "ProjectPath"
+                If Project.OpenProjectPath(Info) = True Then
+                    ProjectSelected = True 'Project has been opened OK.
+                Else
+                    ProjectSelected = False 'Project could not be opened.
+                End If
+
+            Case "ConnectionName"
+                StartupConnectionName = Info
+            '--------------------------------------------------------------------------
+
+            'Application Information  =================================================
+            'returned by client.GetMessageServiceAppInfoAsync()
+            Case "MessageServiceAppInfo:Name"
+                'The name of the Message Service Application. (Not used.)
+
+            Case "MessageServiceAppInfo:ExePath"
+                'The executable file path of the Message Service Application.
+                MsgServiceExePath = Info
+
+            Case "MessageServiceAppInfo:Path"
+                'The path of the Message Service Application (ComNet). (This is where an Application.Lock file will be found while ComNet is running.)
+                MsgServiceAppPath = Info
+           '---------------------------------------------------------------------------
 
             Case "EndOfSequence"
                 'End of Information Vector Sequence reached.
+                'TEST: Add Status OK element at the end of the sequence:
+                Dim statusOK As New XElement("Status", "OK")
+                xlocns(xlocns.Count - 1).Add(statusOK)
+
 
             Case Else
-                Message.SetWarningStyle()
-                Message.Add("Unknown location: " & Locn & vbCrLf)
-                Message.SetNormalStyle()
+                'Message.SetWarningStyle()
+                'Message.Add("Unknown location: " & Locn & vbCrLf)
+                'Message.SetNormalStyle()
+                Message.AddWarning("Unknown location: " & Locn & vbCrLf)
+                Message.AddWarning("            info: " & Info & vbCrLf)
 
         End Select
+
+    End Sub
+
+    Private Sub GetStockChartSettingsForClient()
+        'Get the Stock Chart settings and send it to the Client.
+
+        Dim chartSettings As New XElement("Settings")
+
+        Dim commandClearChart As New XElement("Command", "ClearChart")
+        chartSettings.Add(commandClearChart)
+
+        Dim inputData As New XElement("InputData")
+
+        Dim dataType As New XElement("Type", StockChart.InputDataType)
+        inputData.Add(dataType)
+
+        If Trim(StockChart.InputDatabasePath) = "" Then
+            Dim databasePath As New XElement("DatabasePath", "-")
+            inputData.Add(databasePath)
+        Else
+            Dim databasePath As New XElement("DatabasePath", StockChart.InputDatabasePath)
+            inputData.Add(databasePath)
+        End If
+
+        If Trim(StockChart.InputDataDescr) = "" Then
+            Dim dataDescription As New XElement("DataDescription", "-")
+            inputData.Add(dataDescription)
+        Else
+            Dim dataDescription As New XElement("DataDescription", StockChart.InputDataDescr)
+            inputData.Add(dataDescription)
+        End If
+
+        If Trim(StockChart.InputQuery) = "" Then
+            Dim databaseQuery As New XElement("DatabaseQuery", "-")
+            inputData.Add(databaseQuery)
+        Else
+            Dim databaseQuery As New XElement("DatabaseQuery", StockChart.InputQuery)
+            inputData.Add(databaseQuery)
+        End If
+
+        chartSettings.Add(inputData)
+
+        Dim chartProperties As New XElement("ChartProperties")
+
+        If Trim(StockChart.SeriesName) = "" Then
+            Dim seriesName As New XElement("SeriesName", "-")
+            chartProperties.Add(seriesName)
+        Else
+            Dim seriesName As New XElement("SeriesName", StockChart.SeriesName)
+            chartProperties.Add(seriesName)
+        End If
+
+        If Trim(StockChart.XValuesFieldName) = "" Then
+            Dim xValuesFieldName As New XElement("XValuesFieldName", "-")
+            chartProperties.Add(xValuesFieldName)
+        Else
+            Dim xValuesFieldName As New XElement("XValuesFieldName", StockChart.XValuesFieldName)
+            chartProperties.Add(xValuesFieldName)
+        End If
+
+        If Trim(StockChart.YValuesHighFieldName) = "" Then
+            Dim yValuesHighFieldName As New XElement("YValuesHighFieldName", "-")
+            chartProperties.Add(yValuesHighFieldName)
+        Else
+            Dim yValuesHighFieldName As New XElement("YValuesHighFieldName", StockChart.YValuesHighFieldName)
+            chartProperties.Add(yValuesHighFieldName)
+        End If
+
+        If Trim(StockChart.YValuesLowFieldName) = "" Then
+            Dim yValuesLowFieldName As New XElement("YValuesLowFieldName", "-")
+            chartProperties.Add(yValuesLowFieldName)
+        Else
+            Dim yValuesLowFieldName As New XElement("YValuesLowFieldName", StockChart.YValuesLowFieldName)
+            chartProperties.Add(yValuesLowFieldName)
+        End If
+
+        If Trim(StockChart.YValuesOpenFieldName) = "" Then
+            Dim yValuesOpenFieldName As New XElement("YValuesOpenFieldName", "-")
+            chartProperties.Add(yValuesOpenFieldName)
+        Else
+            Dim yValuesOpenFieldName As New XElement("YValuesOpenFieldName", StockChart.YValuesOpenFieldName)
+            chartProperties.Add(yValuesOpenFieldName)
+        End If
+
+        Dim yValuesCloseFieldName As New XElement("YValuesCloseFieldName", StockChart.YValuesCloseFieldName)
+        chartProperties.Add(yValuesCloseFieldName)
+        chartSettings.Add(chartProperties)
+
+        Dim chartTitle As New XElement("ChartTitle")
+        If Trim(StockChart.ChartLabel.Name) = "" Then
+            Dim chartTitleLabelName As New XElement("LabelName", "Label1")
+            chartTitle.Add(chartTitleLabelName)
+        Else
+            Dim chartTitleLabelName As New XElement("LabelName", StockChart.ChartLabel.Name)
+            chartTitle.Add(chartTitleLabelName)
+        End If
+
+        If Trim(StockChart.ChartLabel.Text) = "" Then
+            Dim chartTitleText As New XElement("Text", "-")
+            chartTitle.Add(chartTitleText)
+        Else
+            Dim chartTitleText As New XElement("Text", StockChart.ChartLabel.Text)
+            chartTitle.Add(chartTitleText)
+        End If
+
+        Dim chartTitleFontName As New XElement("FontName", StockChart.ChartLabel.FontName)
+        chartTitle.Add(chartTitleFontName)
+        Dim chartTitleColor As New XElement("Color", StockChart.ChartLabel.Color)
+        chartTitle.Add(chartTitleColor)
+        Dim chartTitleSize As New XElement("Size", StockChart.ChartLabel.Size)
+        chartTitle.Add(chartTitleSize)
+        Dim chartTitleBold As New XElement("Bold", StockChart.ChartLabel.Bold)
+        chartTitle.Add(chartTitleBold)
+        Dim chartTitleItalic As New XElement("Italic", StockChart.ChartLabel.Italic)
+        chartTitle.Add(chartTitleItalic)
+        Dim chartTitleUnderline As New XElement("Underline", StockChart.ChartLabel.Underline)
+        chartTitle.Add(chartTitleUnderline)
+        Dim chartTitleStrikeout As New XElement("Strikeout", StockChart.ChartLabel.Strikeout)
+        chartTitle.Add(chartTitleStrikeout)
+        Dim chartTitleAlignment As New XElement("Alignment", StockChart.ChartLabel.Alignment)
+        chartTitle.Add(chartTitleAlignment)
+
+        chartSettings.Add(chartTitle)
+
+        Dim xAxis As New XElement("XAxis")
+        If Trim(StockChart.XAxis.Title.Text) = "" Then
+            Dim titleText As New XElement("TitleText", "-")
+            xAxis.Add(titleText)
+        Else
+            Dim titleText As New XElement("TitleText", StockChart.XAxis.Title.Text)
+            xAxis.Add(titleText)
+        End If
+
+        Dim titleFontName As New XElement("TitleFontName", StockChart.XAxis.Title.FontName)
+        xAxis.Add(titleFontName)
+        Dim titleFontColor As New XElement("TitleColor", StockChart.XAxis.Title.Color)
+        xAxis.Add(titleFontColor)
+        Dim titleSize As New XElement("TitleSize", StockChart.XAxis.Title.Size)
+        xAxis.Add(titleSize)
+        Dim titleBold As New XElement("TitleBold", StockChart.XAxis.Title.Bold)
+        xAxis.Add(titleBold)
+        Dim titleItalic As New XElement("TitleItalic", StockChart.XAxis.Title.Italic)
+        xAxis.Add(titleItalic)
+        Dim titleUnderline As New XElement("TitleUnderline", StockChart.XAxis.Title.Underline)
+        xAxis.Add(titleUnderline)
+        Dim titleStrikeout As New XElement("TitleStrikeout", StockChart.XAxis.Title.Strikeout)
+        xAxis.Add(titleStrikeout)
+        Dim titleAlignment As New XElement("TitleAlignment", StockChart.XAxis.TitleAlignment)
+        xAxis.Add(titleAlignment)
+        Dim autoMinimum As New XElement("AutoMinimum", StockChart.XAxis.AutoMinimum)
+        xAxis.Add(autoMinimum)
+        Dim minimum As New XElement("Minimum", StockChart.XAxis.Minimum)
+        xAxis.Add(minimum)
+        Dim autoMaximum As New XElement("AutoMaximum", StockChart.XAxis.AutoMaximum)
+        xAxis.Add(autoMaximum)
+        Dim maximum As New XElement("Maximum", StockChart.XAxis.Maximum)
+        xAxis.Add(maximum)
+        Dim autoInterval As New XElement("AutoInterval", StockChart.XAxis.AutoInterval)
+        xAxis.Add(autoInterval)
+        Dim interval As New XElement("Interval", StockChart.XAxis.Interval)
+        xAxis.Add(interval)
+        Dim autoMajorGridInterval As New XElement("AutoMajorGridInterval", StockChart.XAxis.AutoMajorGridInterval)
+        xAxis.Add(autoMajorGridInterval)
+        Dim majorGridInterval As New XElement("MajorGridInterval", StockChart.XAxis.MajorGridInterval)
+        xAxis.Add(majorGridInterval)
+        chartSettings.Add(xAxis)
+
+        Dim yAxis As New XElement("YAxis")
+        If Trim(StockChart.YAxis.Title.Text) = "" Then
+            Dim titleText2 As New XElement("TitleText", "-")
+            yAxis.Add(titleText2)
+        Else
+            Dim titleText2 As New XElement("TitleText", StockChart.YAxis.Title.Text)
+            yAxis.Add(titleText2)
+        End If
+
+        Dim titleFontName2 As New XElement("TitleFontName", StockChart.YAxis.Title.FontName)
+        yAxis.Add(titleFontName2)
+        Dim titleFontColor2 As New XElement("TitleColor", StockChart.YAxis.Title.Color)
+        yAxis.Add(titleFontColor2)
+        Dim titleSize2 As New XElement("TitleSize", StockChart.YAxis.Title.Size)
+        yAxis.Add(titleSize2)
+        Dim titleBold2 As New XElement("TitleBold", StockChart.YAxis.Title.Bold)
+        yAxis.Add(titleBold2)
+        Dim titleItalic2 As New XElement("TitleItalic", StockChart.YAxis.Title.Italic)
+        yAxis.Add(titleItalic2)
+        Dim titleUnderline2 As New XElement("TitleUnderline", StockChart.YAxis.Title.Underline)
+        yAxis.Add(titleUnderline2)
+        Dim titleStrikeout2 As New XElement("TitleStrikeout", StockChart.YAxis.Title.Strikeout)
+        yAxis.Add(titleStrikeout2)
+        Dim titleAlignment2 As New XElement("TitleAlignment", StockChart.YAxis.TitleAlignment)
+        yAxis.Add(titleAlignment2)
+        Dim autoMinimum2 As New XElement("AutoMinimum", StockChart.YAxis.AutoMinimum)
+        yAxis.Add(autoMinimum2)
+        Dim minimum2 As New XElement("Minimum", StockChart.YAxis.Minimum)
+        yAxis.Add(minimum2)
+        Dim autoMaximum2 As New XElement("AutoMaximum", StockChart.YAxis.AutoMaximum)
+        yAxis.Add(autoMaximum2)
+        Dim maximum2 As New XElement("Maximum", StockChart.YAxis.Maximum)
+        yAxis.Add(maximum2)
+        Dim autoInterval2 As New XElement("AutoInterval", StockChart.YAxis.AutoInterval)
+        yAxis.Add(autoInterval2)
+        Dim interval2 As New XElement("Interval", StockChart.YAxis.Interval)
+        yAxis.Add(interval2)
+        Dim autoMajorGridInterval2 As New XElement("AutoMajorGridInterval", StockChart.YAxis.AutoMajorGridInterval)
+        yAxis.Add(autoMajorGridInterval2)
+        Dim majorGridInterval2 As New XElement("MajorGridInterval", StockChart.YAxis.MajorGridInterval)
+        yAxis.Add(majorGridInterval2)
+        chartSettings.Add(yAxis)
+
+        Dim commandOK As New XElement("Command", "OK")
+        chartSettings.Add(commandOK)
+
+        xlocns(xlocns.Count - 1).Add(chartSettings) 'The settings are aded to the last location in the XLocations list.
+
+    End Sub
+
+    Private Sub GetPointChartSettingsForClient()
+        'Get the Point Chart settings and send it to the Client.
+
+        Dim chartSettings As New XElement("Settings")
+
+        Dim commandClearChart As New XElement("Command", "ClearChart")
+        chartSettings.Add(commandClearChart)
+
+        Dim inputData As New XElement("InputData")
+
+        Dim dataType As New XElement("Type", PointChart.InputDataType)
+        inputData.Add(dataType)
+
+        If Trim(PointChart.InputDatabasePath) = "" Then
+            Dim databasePath As New XElement("DatabasePath", "-")
+            inputData.Add(databasePath)
+        Else
+            Dim databasePath As New XElement("DatabasePath", PointChart.InputDatabasePath)
+            inputData.Add(databasePath)
+        End If
+
+        If Trim(PointChart.InputDataDescr) = "" Then
+            Dim dataDescription As New XElement("DataDescription", "-")
+            inputData.Add(dataDescription)
+        Else
+            Dim dataDescription As New XElement("DataDescription", PointChart.InputDataDescr)
+            inputData.Add(dataDescription)
+        End If
+
+        If Trim(PointChart.InputQuery) = "" Then
+            Dim databaseQuery As New XElement("DatabaseQuery", "-")
+            inputData.Add(databaseQuery)
+        Else
+            Dim databaseQuery As New XElement("DatabaseQuery", PointChart.InputQuery)
+            inputData.Add(databaseQuery)
+        End If
+
+        chartSettings.Add(inputData)
+
+        Dim chartProperties As New XElement("ChartProperties")
+
+        If Trim(PointChart.SeriesName) = "" Then
+            Dim seriesName As New XElement("SeriesName", "-")
+            chartProperties.Add(seriesName)
+        Else
+            Dim seriesName As New XElement("SeriesName", PointChart.SeriesName)
+            chartProperties.Add(seriesName)
+        End If
+
+        If Trim(PointChart.XValuesFieldName) = "" Then
+            Dim xValuesFieldName As New XElement("XValuesFieldName", "-")
+            chartProperties.Add(xValuesFieldName)
+        Else
+            Dim xValuesFieldName As New XElement("XValuesFieldName", PointChart.XValuesFieldName)
+            chartProperties.Add(xValuesFieldName)
+        End If
+
+        If Trim(PointChart.YValuesFieldName) = "" Then
+            Dim yValuesFieldName As New XElement("YValuesFieldName", "-")
+            chartProperties.Add(yValuesFieldName)
+        Else
+            Dim yValuesFieldName As New XElement("YValuesFieldName", PointChart.YValuesFieldName)
+            chartProperties.Add(yValuesFieldName)
+        End If
+
+        chartSettings.Add(chartProperties)
+
+        Dim chartTitle As New XElement("ChartTitle")
+        If Trim(PointChart.ChartLabel.Name) = "" Then
+            Dim chartTitleLabelName As New XElement("LabelName", "Label1")
+            chartTitle.Add(chartTitleLabelName)
+        Else
+            Dim chartTitleLabelName As New XElement("LabelName", PointChart.ChartLabel.Name)
+            chartTitle.Add(chartTitleLabelName)
+        End If
+
+        If Trim(PointChart.ChartLabel.Text) = "" Then
+            Dim chartTitleText As New XElement("Text", "-")
+            chartTitle.Add(chartTitleText)
+        Else
+            Dim chartTitleText As New XElement("Text", PointChart.ChartLabel.Text)
+            chartTitle.Add(chartTitleText)
+        End If
+
+        Dim chartTitleFontName As New XElement("FontName", PointChart.ChartLabel.FontName)
+        chartTitle.Add(chartTitleFontName)
+        Dim chartTitleColor As New XElement("Color", PointChart.ChartLabel.Color)
+        chartTitle.Add(chartTitleColor)
+        Dim chartTitleSize As New XElement("Size", PointChart.ChartLabel.Size)
+        chartTitle.Add(chartTitleSize)
+        Dim chartTitleBold As New XElement("Bold", PointChart.ChartLabel.Bold)
+        chartTitle.Add(chartTitleBold)
+        Dim chartTitleItalic As New XElement("Italic", PointChart.ChartLabel.Italic)
+        chartTitle.Add(chartTitleItalic)
+        Dim chartTitleUnderline As New XElement("Underline", PointChart.ChartLabel.Underline)
+        chartTitle.Add(chartTitleUnderline)
+        Dim chartTitleStrikeout As New XElement("Strikeout", PointChart.ChartLabel.Strikeout)
+        chartTitle.Add(chartTitleStrikeout)
+        Dim chartTitleAlignment As New XElement("Alignment", PointChart.ChartLabel.Alignment)
+        chartTitle.Add(chartTitleAlignment)
+
+        chartSettings.Add(chartTitle)
+
+        Dim xAxis As New XElement("XAxis")
+        If Trim(PointChart.XAxis.Title.Text) = "" Then
+            Dim titleText As New XElement("TitleText", "-")
+            xAxis.Add(titleText)
+        Else
+            Dim titleText As New XElement("TitleText", PointChart.XAxis.Title.Text)
+            xAxis.Add(titleText)
+        End If
+
+        Dim titleFontName As New XElement("TitleFontName", PointChart.XAxis.Title.FontName)
+        xAxis.Add(titleFontName)
+        Dim titleFontColor As New XElement("TitleColor", PointChart.XAxis.Title.Color)
+        xAxis.Add(titleFontColor)
+        Dim titleSize As New XElement("TitleSize", PointChart.XAxis.Title.Size)
+        xAxis.Add(titleSize)
+        Dim titleBold As New XElement("TitleBold", PointChart.XAxis.Title.Bold)
+        xAxis.Add(titleBold)
+        Dim titleItalic As New XElement("TitleItalic", PointChart.XAxis.Title.Italic)
+        xAxis.Add(titleItalic)
+        Dim titleUnderline As New XElement("TitleUnderline", PointChart.XAxis.Title.Underline)
+        xAxis.Add(titleUnderline)
+        Dim titleStrikeout As New XElement("TitleStrikeout", PointChart.XAxis.Title.Strikeout)
+        xAxis.Add(titleStrikeout)
+        Dim titleAlignment As New XElement("TitleAlignment", PointChart.XAxis.TitleAlignment)
+        xAxis.Add(titleAlignment)
+        Dim autoMinimum As New XElement("AutoMinimum", PointChart.XAxis.AutoMinimum)
+        xAxis.Add(autoMinimum)
+        Dim minimum As New XElement("Minimum", PointChart.XAxis.Minimum)
+        xAxis.Add(minimum)
+        Dim autoMaximum As New XElement("AutoMaximum", PointChart.XAxis.AutoMaximum)
+        xAxis.Add(autoMaximum)
+        Dim maximum As New XElement("Maximum", PointChart.XAxis.Maximum)
+        xAxis.Add(maximum)
+        Dim autoInterval As New XElement("AutoInterval", PointChart.XAxis.AutoInterval)
+        xAxis.Add(autoInterval)
+        Dim interval As New XElement("Interval", PointChart.XAxis.Interval)
+        xAxis.Add(interval)
+        Dim autoMajorGridInterval As New XElement("AutoMajorGridInterval", PointChart.XAxis.AutoMajorGridInterval)
+        xAxis.Add(autoMajorGridInterval)
+        Dim majorGridInterval As New XElement("MajorGridInterval", PointChart.XAxis.MajorGridInterval)
+        xAxis.Add(majorGridInterval)
+        chartSettings.Add(xAxis)
+
+        Dim yAxis As New XElement("YAxis")
+        If Trim(PointChart.YAxis.Title.Text) = "" Then
+            Dim titleText2 As New XElement("TitleText", "-")
+            yAxis.Add(titleText2)
+        Else
+            Dim titleText2 As New XElement("TitleText", PointChart.YAxis.Title.Text)
+            yAxis.Add(titleText2)
+        End If
+
+        Dim titleFontName2 As New XElement("TitleFontName", PointChart.YAxis.Title.FontName)
+        yAxis.Add(titleFontName2)
+        Dim titleFontColor2 As New XElement("TitleColor", PointChart.YAxis.Title.Color)
+        yAxis.Add(titleFontColor2)
+        Dim titleSize2 As New XElement("TitleSize", PointChart.YAxis.Title.Size)
+        yAxis.Add(titleSize2)
+        Dim titleBold2 As New XElement("TitleBold", PointChart.YAxis.Title.Bold)
+        yAxis.Add(titleBold2)
+        Dim titleItalic2 As New XElement("TitleItalic", PointChart.YAxis.Title.Italic)
+        yAxis.Add(titleItalic2)
+        Dim titleUnderline2 As New XElement("TitleUnderline", PointChart.YAxis.Title.Underline)
+        yAxis.Add(titleUnderline2)
+        Dim titleStrikeout2 As New XElement("TitleStrikeout", PointChart.YAxis.Title.Strikeout)
+        yAxis.Add(titleStrikeout2)
+        Dim titleAlignment2 As New XElement("TitleAlignment", PointChart.YAxis.TitleAlignment)
+        yAxis.Add(titleAlignment2)
+        Dim autoMinimum2 As New XElement("AutoMinimum", PointChart.YAxis.AutoMinimum)
+        yAxis.Add(autoMinimum2)
+        Dim minimum2 As New XElement("Minimum", PointChart.YAxis.Minimum)
+        yAxis.Add(minimum2)
+        Dim autoMaximum2 As New XElement("AutoMaximum", PointChart.YAxis.AutoMaximum)
+        yAxis.Add(autoMaximum2)
+        Dim maximum2 As New XElement("Maximum", PointChart.YAxis.Maximum)
+        yAxis.Add(maximum2)
+        Dim autoInterval2 As New XElement("AutoInterval", PointChart.YAxis.AutoInterval)
+        yAxis.Add(autoInterval2)
+        Dim interval2 As New XElement("Interval", PointChart.YAxis.Interval)
+        yAxis.Add(interval2)
+        Dim autoMajorGridInterval2 As New XElement("AutoMajorGridInterval", PointChart.YAxis.AutoMajorGridInterval)
+        yAxis.Add(autoMajorGridInterval2)
+        Dim majorGridInterval2 As New XElement("MajorGridInterval", PointChart.YAxis.MajorGridInterval)
+        yAxis.Add(majorGridInterval2)
+        chartSettings.Add(yAxis)
+
+        Dim commandOK As New XElement("Command", "OK")
+        chartSettings.Add(commandOK)
+
+        xlocns(xlocns.Count - 1).Add(chartSettings) 'The settings are added to the last location in the XLocations list.
+
+
+
 
     End Sub
 
@@ -3887,11 +6051,14 @@ Public Class Main
                 Message.AddWarning("client state is faulted. Message not sent!" & vbCrLf)
             Else
                 Try
-                    Message.Add("Sending a message. Number of characters: " & MessageText.Length & vbCrLf)
-                    client.SendMessage(ClientAppName, MessageText)
+                    'Message.Add("Sending a message. Number of characters: " & MessageText.Length & vbCrLf)
+                    'client.SendMessage(ClientAppName, MessageText)
+                    client.SendMessage(ClientAppNetName, ClientConnName, MessageText) 'Added 2Feb19
                     MessageText = "" 'Clear the message after it has been sent.
                     ClientAppName = "" 'Clear the Client Application Name after the message has been sent.
-                    ClientAppLocn = "" 'Clear the Client Application Location after the message has been sent.
+                    'ClientAppLocn = "" 'Clear the Client Application Location after the message has been sent.
+                    ClientConnName = "" 'Clear the Client Application Name after the message has been sent.
+                    xlocns.Clear()
                 Catch ex As Exception
                     Message.AddWarning("Error sending message: " & ex.Message & vbCrLf)
                 End Try
@@ -3965,15 +6132,75 @@ Public Class Main
         End Try
     End Sub
 
-    Private Sub txtDatabasePath_TextChanged(sender As Object, e As EventArgs) Handles txtDatabasePath.TextChanged
-
+    Private Sub ApplicationInfo_UpdateExePath() Handles ApplicationInfo.UpdateExePath
+        'Update the Executable Path.
+        ApplicationInfo.ExecutablePath = Application.ExecutablePath
     End Sub
 
+    Private Sub TabPage1_Enter(sender As Object, e As EventArgs) Handles TabPage1.Enter
+        'txtCurrentDuration.Text = Format(Project.Usage.CurrentDuration.TotalHours, "0.000")
+        txtCurrentDuration.Text = Project.Usage.CurrentDuration.Days.ToString.PadLeft(5, "0"c) & ":" &
+                                 Project.Usage.CurrentDuration.Hours.ToString.PadLeft(2, "0"c) & ":" &
+                                 Project.Usage.CurrentDuration.Minutes.ToString.PadLeft(2, "0"c) & ":" &
+                                 Project.Usage.CurrentDuration.Seconds.ToString.PadLeft(2, "0"c)
 
+        Timer2.Interval = 5000 '5 seconds
+        Timer2.Enabled = True
+        Timer2.Start()
+    End Sub
 
+    Private Sub TabPage1_Leave(sender As Object, e As EventArgs) Handles TabPage1.Leave
+        Timer2.Enabled = False
+    End Sub
 
+    Private Sub Timer2_Tick(sender As Object, e As EventArgs) Handles Timer2.Tick
+        'Update the current duration:
+        txtCurrentDuration.Text = Project.Usage.CurrentDuration.Days.ToString.PadLeft(5, "0"c) & ":" &
+                        Project.Usage.CurrentDuration.Hours.ToString.PadLeft(2, "0"c) & ":" &
+                        Project.Usage.CurrentDuration.Minutes.ToString.PadLeft(2, "0"c) & ":" &
+                        Project.Usage.CurrentDuration.Seconds.ToString.PadLeft(2, "0"c)
+    End Sub
 
+    Private Sub btnAdd_Click(sender As Object, e As EventArgs) Handles btnAdd.Click
+        'Add the current project to the Message Service list.
 
+        If Project.ParentProjectName <> "" Then
+            Message.AddWarning("This project has a parent: " & Project.ParentProjectName & vbCrLf)
+            Message.AddWarning("Child projects can not be added to the list." & vbCrLf)
+            Exit Sub
+        End If
+
+        If ConnectedToComNet = False Then
+            Message.AddWarning("The application is not connected to the Message Service." & vbCrLf)
+        Else 'Connected to the Message Service (ComNet).
+            If IsNothing(client) Then
+                Message.Add("No client connection available!" & vbCrLf)
+            Else
+                If client.State = ServiceModel.CommunicationState.Faulted Then
+                    Message.Add("Client state is faulted. Message not sent!" & vbCrLf)
+                Else
+                    'Construct the XMessage to send to AppNet:
+                    Dim decl As New XDeclaration("1.0", "utf-8", "yes")
+                    Dim doc As New XDocument(decl, Nothing) 'Create an XDocument to store the instructions.
+                    Dim xmessage As New XElement("XMsg") 'This indicates the start of the message in the XMessage class
+                    Dim projectInfo As New XElement("ProjectInfo")
+
+                    'Dim Path As New XElement("Path", Me.Project.Path)
+                    Dim Path As New XElement("Path", Project.Path)
+                    projectInfo.Add(Path)
+                    xmessage.Add(projectInfo)
+                    doc.Add(xmessage)
+
+                    'Show the message sent to AppNet:
+                    Message.XAddText("Message sent to " & "MessageService" & ":" & vbCrLf, "XmlSentNotice")
+                    Message.XAddXml(doc.ToString)
+                    Message.XAddText(vbCrLf, "Normal") 'Add extra line
+                    'client.SendMessage("MessageService", doc.ToString)
+                    client.SendMessage("", "MessageService", doc.ToString) 'UPDATED 2Feb19
+                End If
+            End If
+        End If
+    End Sub
 
 
 

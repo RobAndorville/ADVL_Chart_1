@@ -684,6 +684,8 @@
 
 
             'Specify X Axis range: ------------------------------------------------------------------------------
+            Chart1.ChartAreas(0).AxisX.IntervalType = DataVisualization.Charting.DateTimeIntervalType.Auto
+
             If PointChart.XAxis.AutoMinimum = True Then
                 Chart1.ChartAreas(0).AxisX.Minimum = [Double].NaN
             Else
